@@ -1,23 +1,55 @@
 classdef stanFit < handle
    properties
+      pars
+      sim
+
+      output
+      exitValue
       hdr
       varNames
       samples
-      output_
+      
+   end
+   properties
+      params
    end
    methods
-      function self = stanFit(p)
+      function self = stanFit(varargin)
          
-         % Listen for exit from processManager
-         lh = addlistener(p,'exit',@(src,evnt)extract(self,src,evnt));
+         if nargin == 0
+            return;
+         end
+      
+         p = inputParser;
+         p.KeepUnmatched= true;
+         p.FunctionName = 'stanFit constructor';
+         p.addParamValue('processes','',@(x) isa(x,'processManager'));
+         p.addParamValue('output',{},@iscell);
+         p.parse(varargin{:});
+
+         if ~isempty(p.Results.processes)
+            % Listen for exit from processManager
+            lh = addlistener(p.Results.processes,'exit',@(src,evnt)extract(self,src,evnt));
+         end
+         if ~isempty(p.Results.output)
+            self.output = p.Results.output;
+            self.exitValue = nan(size(self.output));
+         end
+         
       end
       function extract(self,src,evtdata)
          % need to id the chain that finished, load that data? or wait
          % until everyone is done???
-         disp('detect')
-         fid = fopen(self.output_);
-         [self.hdr,self.varNames,self.samples] = self.readStanCsv(fid);
-         fclose(fid);
+         %disp('detect')
+         self.exitValue(strcmp(self.output,src.id)) = src.exitValue;
+         if all(self.exitValue == 0)
+            disp('done');
+            for i = 1:numel(self.output)
+               fid = fopen(self.output{i});
+               [self.hdr{i},self.varNames{i},self.samples{i}] = self.readStanCsv(fid);
+               fclose(fid);
+            end
+         end
       end
    end
    
