@@ -12,9 +12,12 @@
 %Initial version is a wrapper for stan cmd-line.
 classdef stan < handle
    properties(GetAccess = public, SetAccess = public)
-      stanHome = '/Users/brian/Downloads/stan-2.0.1/';
-
-      modelHome % file or url
+      stanHome = '/Users/brian/Downloads/stan-2.0.1';
+   end
+   properties(GetAccess = public, SetAccess = private)
+      modelHome % url or path to .stan file
+   end
+   properties(GetAccess = public, SetAccess = public)
       model % name of .stan file
       modelCode
 
@@ -22,28 +25,28 @@ classdef stan < handle
 
       method
       data % need to handle matrix versus filename, should have a callback
-      %
- %     pars
+
+      % Expose the same parameters as Rstan and Pystan
+      % quick access, use a setter to place these into struct
       chains
       refresh
       output
      
-      %clean % get rid of generated files
-      modelCodeOverwrite = false;
-   end
-   
-   properties(GetAccess = public, SetAccess = private, Dependent = true, Transient = true)
-      
-      % Expose the same parameters as Rstan and Pystan
-      % quick access, use a setter to place these into struct
-      % currently, only only those parameters in command-line stan are
-      % included here, others, which may be relevant, are above?
       id 
       iter %
       warmup
       thin
       init
       seed      
+
+      modelCodeOverwrite = false;
+   end
+   
+   properties(GetAccess = public, SetAccess = private, Dependent = true, Transient = true)
+      
+      % currently, only only those parameters in command-line stan are
+      % included here, others, which may be relevant, are above?
+%      id 
       
       command
    end
@@ -64,28 +67,24 @@ classdef stan < handle
       function self = stan(varargin)
          [self.defaults,self.validators] = self.stanParams();
          self.params = self.defaults;
-%         self.modelPath = [pwd filesep];
-         self.workingDir = [pwd filesep];
-         if nargin == 0
-            return;
-         end
-      
+         self.workingDir = pwd;
+
          p = inputParser;
          p.KeepUnmatched= true;
          p.FunctionName = 'stan constructor';
+         p.addParamValue('stanHome',self.stanHome,@(x) exist(x,'dir')==7);
          p.addParamValue('model','',@ischar);
-         p.addParamValue('modelHome',[pwd filesep],@(x) exist(x,'dir')==7);
-         p.addParamValue('workingDir',[pwd filesep],@(x) exist(x,'dir')==7);
+         p.addParamValue('modelCode',{},@(x) ischar(x) || iscell(x));
+         p.addParamValue('workingDir',pwd,@(x) exist(x,'dir')==7);
          p.addParamValue('method','sample',@(x) validatestring(x,{'sample' 'optimize' 'diagnose'}));
          p.addParamValue('chains',4,@(x) (x>0)&&(x<=java.lang.Runtime.getRuntime.availableProcessors));
          p.addParamValue('output','',@ischar);
          p.addParamValue('refresh',self.params.output.refresh,@isnumeric);
          p.parse(varargin{:});
 
+         self.stanHome = p.Results.stanHome;
          self.model = p.Results.model;
-         
-         % check that we can write to the working and model directories?
-         % otherwise set to tempdir
+         self.modelCode = p.Results.modelCode;
          self.workingDir = p.Results.workingDir;
          
          self.method = p.Results.method;
@@ -102,6 +101,20 @@ classdef stan < handle
          % pass remaining inputs to set()
          self.set(p.Unmatched);
       end
+      
+      function set.stanHome(self,d)
+         %d = fileparts(d);
+         [~,fa] = fileattrib(d);
+         if fa.directory
+            if exist(fullfile(fa.Name,'makefile'),'file') && exist(fullfile(fa.Name,'bin'),'dir')
+               self.stanHome = fa.Name;
+            else
+               error('Does not look like a proper stan setup');
+            end
+         else
+            error('stanHome should be the base directory name for stan');
+         end
+      end
             
       function set.model(self,model)
          if ischar(model)
@@ -111,16 +124,19 @@ classdef stan < handle
             elseif exist([model '.stan'],'file')==2
                [filepath,filename,fileext] = fileparts(model);
             else               
-               % Could be the name for a model defined in modelCode
+               % File does not exist, but could be the name for a model 
+               % defined by modelCode
                [filepath,filename,fileext] = fileparts(model);
-               %error('file does not exist');
             end
          else
-            error('bad model');
+            error('model should be a filename');
          end
          if isempty(filepath)
             self.modelHome = pwd;
          else
+            if ~strcmp(self.modelHome,filepath)
+               fprintf('New modelHome set.\n');
+            end
             self.modelHome = filepath;
             % check that existing modelHome clashes?
          end
@@ -131,9 +147,14 @@ classdef stan < handle
       end
       
       function set.modelCode(self,model)
-         % NEED A FILENAME
+         if isempty(model)
+            return;
+         end
+         if ischar(model)
+            model = regexp(model,'(\r\n|\n|\r)','split')';
+         end
          if any(strncmp('data',model,4)) || any(strncmp('parameters',model,10)) || any(strncmp('model',model,5))
-            % model string, assuming model is a cell array of strings            
+            % A model string, assuming model is a cell array of strings            
             if exist(fullfile(self.modelHome,[self.model '.stan']),'file') == 2
                % Model file already exists
                if self.modelCodeOverwrite
@@ -148,11 +169,11 @@ classdef stan < handle
             end
          else
             error('does not look like a stan model');
-         end         
-         % trigger recompile?
+         end
       end
       
       function modelCode = get.modelCode(self)
+         % Always reread file? Or checksum?
          try
             if ~strncmp(self.modelHome,'http',4)
                str = urlread(['file:///' fullfile(self.modelHome,[self.model '.stan'])]);
@@ -162,7 +183,7 @@ classdef stan < handle
             modelCode = regexp(str,'(\r\n|\n|\r)','split')';
          catch err
             if strcmp(err.identifier,'MATLAB:urlread:ConnectionFailed')
-               fprintf('file does not exist\n');
+               %fprintf('File does not exist\n');
                modelCode = {};
             else
                rethrow(err);
@@ -170,7 +191,16 @@ classdef stan < handle
          end
       end
       
-      
+      function set.workingDir(self,d)
+         d = fileparts(d);
+         [~,fa] = fileattrib(d);
+         if fa.directory && fa.UserWrite && fa.UserRead
+            self.workingDir = fa.Name;
+         else
+            self.workingDir = tempdir;
+         end
+      end
+            
       function set.chains(self,nChains)
          if (nChains>java.lang.Runtime.getRuntime.availableProcessors) || (nChains<1)
             error('bad # of chains');
@@ -184,9 +214,55 @@ classdef stan < handle
          self.refresh = refresh;
       end
       
+      function set.id(self,id)
+         validateattributes(id,self.validators.id{1},self.validators.id{2})
+         self.params.id = id;
+      end
+      function id = get.id(self)
+         id = self.params.id;
+      end
+      function set.iter(self,iter)
+         validateattributes(iter,self.validators.sample.num_samples{1},self.validators.sample.num_samples{2})
+         self.params.sample.num_samples = iter;
+      end
+      function iter = get.iter(self)
+         iter = self.params.sample.num_samples;
+      end
+      function set.warmup(self,warmup)
+         validateattributes(warmup,self.validators.sample.num_warmup{1},self.validators.sample.num_warmup{2})
+         self.params.sample.num_warmup = warmup;
+      end
+      function warmup = get.warmup(self)
+         warmup = self.params.sample.num_warmup;
+      end
+      function set.thin(self,thin)
+         validateattributes(thin,self.validators.sample.thin{1},self.validators.sample.thin{2})
+         self.params.sample.thin = thin;
+      end
+      function thin = get.thin(self)
+         thin = self.params.sample.thin;
+      end
+      function set.init(self,init)
+         % handle vector case
+         validateattributes(init,self.validators.init{1},self.validators.init{2})
+         self.params.init = init;
+      end
+      function init = get.init(self)
+         init = self.params.init;
+      end
+      function set.seed(self,seed)
+         % handle chains > 1
+         validateattributes(seed,self.validators.random.seed{1},self.validators.random.seed{2})
+         self.params.random.seed = seed;
+      end
+      function seed = get.seed(self)
+         seed = self.params.random.seed;
+      end
+      
       function set(self,varargin)
          va = @validateattributes;
-         d = self.defaults;
+         %d = self.defaults;
+         d = self.params;
          v = self.validators;
          
          p = inputParser;
@@ -202,12 +278,19 @@ classdef stan < handle
          p.addParamValue('data',[],@(x) isstruct(x) || isstr(x));
          p.parse(varargin{:});
 
-         self.params.sample.num_samples = p.Results.iter;
-         self.params.sample.num_warmup = p.Results.warmup;
-         self.params.sample.thin = p.Results.thin;
-         self.params.init = p.Results.init;
-         self.params.random.seed = p.Results.seed;
-         
+%          self.params.sample.num_samples = p.Results.iter;
+%          self.params.sample.num_warmup = p.Results.warmup;
+%          self.params.sample.thin = p.Results.thin;
+%          self.params.init = p.Results.init;
+%          self.params.random.seed = p.Results.seed;
+
+         self.id = p.Results.id;
+         self.iter = p.Results.iter;
+         self.warmup = p.Results.warmup;
+         self.thin = p.Results.thin;
+         self.init = p.Results.init;
+         self.seed = p.Results.seed;
+
          if isstruct(p.Results.data)
             % rdump()
          elseif ischar(p.Results.data)
@@ -224,28 +307,11 @@ classdef stan < handle
          end
       end
       
-      function id = get.id(self)
-         id = self.params.id;
-      end
-      function iter = get.iter(self)
-         iter = self.params.sample.num_samples;
-      end
-      function warmup = get.warmup(self)
-         warmup = self.params.sample.num_warmup;
-      end
-      function thin = get.thin(self)
-         thin = self.params.sample.thin;
-      end
-      function init = get.init(self)
-         init = self.params.init;
-      end
-      function seed = get.seed(self)
-         seed = self.params.random.seed;
-      end
       
       function command = get.command(self)
-         % add a prefix and postfix property according to os
-         command = {[self.modelPath self.model ' ']};
+         % add a prefix and postfix property according to os?
+         % Maybe better to use full paths to file
+         command = {[fullfile(self.modelHome,self.model) ' ']};
          %command = {['./' self.model ' ']};
          str = parseParams(self.params,self.method);
          command = cat(1,command,str);
@@ -278,7 +344,7 @@ classdef stan < handle
             % https://groups.google.com/forum/#!msg/stan-users/3goteHAsJGs/nRiOhi9xxqEJ
             % https://groups.google.com/forum/#!searchin/stan-dev/seed/stan-dev/C8xa0hiSWLY/W6JC_35T1woJ
             p(i) = processManager('id',output{i},'command',command,...
-                               'workingDir',self.modelPath,...
+                               'workingDir',self.modelHome,...
                                'wrap',100,...
                                'keepStdout',false,...
                                'pollInterval',1,...
