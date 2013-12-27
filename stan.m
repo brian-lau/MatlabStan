@@ -72,14 +72,14 @@ classdef stan < handle
          p = inputParser;
          p.KeepUnmatched= true;
          p.FunctionName = 'stan constructor';
-         p.addParamValue('stanHome',self.stanHome,@(x) exist(x,'dir')==7);
-         p.addParamValue('model','',@ischar);
-         p.addParamValue('modelCode',{},@(x) ischar(x) || iscell(x));
-         p.addParamValue('workingDir',pwd,@(x) exist(x,'dir')==7);
+         p.addParamValue('stanHome',self.stanHome);
+         p.addParamValue('model','');
+         p.addParamValue('modelCode',{});
+         p.addParamValue('workingDir',pwd);
          p.addParamValue('method','sample',@(x) validatestring(x,{'sample' 'optimize' 'diagnose'}));
-         p.addParamValue('chains',4,@(x) (x>0)&&(x<=java.lang.Runtime.getRuntime.availableProcessors));
+         p.addParamValue('chains',4);
          p.addParamValue('output','',@ischar);
-         p.addParamValue('refresh',self.params.output.refresh,@isnumeric);
+         p.addParamValue('refresh',self.defaults.output.refresh,@isnumeric);
          p.parse(varargin{:});
 
          self.stanHome = p.Results.stanHome;
@@ -260,29 +260,34 @@ classdef stan < handle
       end
       
       function set(self,varargin)
-         va = @validateattributes;
-         %d = self.defaults;
-         d = self.params;
-         v = self.validators;
-         
          p = inputParser;
          p.KeepUnmatched= false;
          p.FunctionName = 'stan parameter setter';
-         p.addParamValue('id',d.id,@(x) va(x,v.id{1},v.id{2}));
-         p.addParamValue('iter',d.sample.num_samples,@(x) va(x,v.sample.num_samples{1},v.sample.num_samples{2}));
-         p.addParamValue('warmup',d.sample.num_warmup,@(x) va(x,v.sample.num_warmup{1},v.sample.num_warmup{2}));
-         p.addParamValue('thin',d.sample.thin,@(x) va(x,v.sample.thin{1},v.sample.thin{2}));
-         p.addParamValue('init',d.init,@(x) va(x,v.init{1},v.init{2}));
-         p.addParamValue('seed',d.random.seed,@(x) va(x,v.random.seed{1},v.random.seed{2}));
-         %p.addParamValue('data',d.data.file,v.data.file);
+         p.addParamValue('id',self.id);
+         p.addParamValue('iter',self.iter);
+         p.addParamValue('warmup',self.warmup);
+         p.addParamValue('thin',self.thin);
+         p.addParamValue('init',self.init);
+         p.addParamValue('seed',self.seed);
          p.addParamValue('data',[],@(x) isstruct(x) || isstr(x));
          p.parse(varargin{:});
-
-%          self.params.sample.num_samples = p.Results.iter;
-%          self.params.sample.num_warmup = p.Results.warmup;
-%          self.params.sample.thin = p.Results.thin;
-%          self.params.init = p.Results.init;
-%          self.params.random.seed = p.Results.seed;
+% 
+%          va = @validateattributes;
+%          d = self.defaults;
+%          d = self.params;
+%          v = self.validators;
+%          p = inputParser;
+%          p.KeepUnmatched= false;
+%          p.FunctionName = 'stan parameter setter';
+%          p.addParamValue('id',d.id,@(x) va(x,v.id{1},v.id{2}));
+%          p.addParamValue('iter',d.sample.num_samples,@(x) va(x,v.sample.num_samples{1},v.sample.num_samples{2}));
+%          p.addParamValue('warmup',d.sample.num_warmup,@(x) va(x,v.sample.num_warmup{1},v.sample.num_warmup{2}));
+%          p.addParamValue('thin',d.sample.thin,@(x) va(x,v.sample.thin{1},v.sample.thin{2}));
+%          p.addParamValue('init',d.init,@(x) va(x,v.init{1},v.init{2}));
+%          p.addParamValue('seed',d.random.seed,@(x) va(x,v.random.seed{1},v.random.seed{2}));
+%          %p.addParamValue('data',d.data.file,v.data.file);
+%          p.addParamValue('data',[],@(x) isstruct(x) || isstr(x));
+%          p.parse(varargin{:});
 
          self.id = p.Results.id;
          self.iter = p.Results.iter;
