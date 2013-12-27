@@ -4,28 +4,32 @@
 % bash script for stan
 % https://groups.google.com/forum/?fromgroups#!topic/stan-dev/awcXvXxIfHg
 
+% Call stan for a model in the cloud? For parallel jobs, but we have to
+% figure out how to compile? command line does not accept http, so have to
+% write locally
+
 % Notes
 %Initial version is a wrapper for stan cmd-line.
 classdef stan < handle
    properties(GetAccess = public, SetAccess = public)
       stanHome = '/Users/brian/Downloads/stan-2.0.1/';
-%      compileOptions
 
-%      model = 'bernoulli';
-%       modelPath = '/Users/brian/Downloads/stan-2.0.1/src/models/basic_estimators/';
-%       workingDir = '/Users/brian/Downloads/stan-2.0.1/src/models/basic_estimators/';
+      modelHome % file or url
+      model % name of .stan file
+      modelCode
+
       workingDir
-      modelPath
-      model
 
       method
       data % need to handle matrix versus filename, should have a callback
-      pars
+      %
+ %     pars
       chains
       refresh
       output
      
-      clean % get rid of generated files
+      %clean % get rid of generated files
+      modelCodeOverwrite = false;
    end
    
    properties(GetAccess = public, SetAccess = private, Dependent = true, Transient = true)
@@ -44,7 +48,7 @@ classdef stan < handle
       command
    end
    
-   properties(GetAccess = public, SetAccess = public)
+   properties(GetAccess = public, SetAccess = private)
       % eventually private
       params
       defaults
@@ -60,7 +64,7 @@ classdef stan < handle
       function self = stan(varargin)
          [self.defaults,self.validators] = self.stanParams();
          self.params = self.defaults;
-         self.modelPath = [pwd filesep];
+%         self.modelPath = [pwd filesep];
          self.workingDir = [pwd filesep];
          if nargin == 0
             return;
@@ -70,7 +74,7 @@ classdef stan < handle
          p.KeepUnmatched= true;
          p.FunctionName = 'stan constructor';
          p.addParamValue('model','',@ischar);
-         p.addParamValue('modelPath',[pwd filesep],@(x) exist(x,'dir')==7);
+         p.addParamValue('modelHome',[pwd filesep],@(x) exist(x,'dir')==7);
          p.addParamValue('workingDir',[pwd filesep],@(x) exist(x,'dir')==7);
          p.addParamValue('method','sample',@(x) validatestring(x,{'sample' 'optimize' 'diagnose'}));
          p.addParamValue('chains',4,@(x) (x>0)&&(x<=java.lang.Runtime.getRuntime.availableProcessors));
@@ -78,15 +82,7 @@ classdef stan < handle
          p.addParamValue('refresh',self.params.output.refresh,@isnumeric);
          p.parse(varargin{:});
 
-         if any(strncmp('data',p.Results.model,4)) && any(strncmp('parameters',p.Results.model,10)) && any(strncmp('model',p.Results.model,5))
-            % model string, assuming model is a cell array of strings
-            % writeModel()
-            % store filename in model_?
-         else
-            % filename, may need to strip of .stan extension?
-            self.model = p.Results.model;
-         end
-         self.modelPath = p.Results.modelPath;
+         self.model = p.Results.model;
          
          % check that we can write to the working and model directories?
          % otherwise set to tempdir
@@ -106,25 +102,74 @@ classdef stan < handle
          % pass remaining inputs to set()
          self.set(p.Unmatched);
       end
+            
+      function set.model(self,model)
+         if ischar(model)
+            % filename, may need to strip of .stan extension?
+            if (exist(model,'file')==2) || strncmp(model,'http',4)
+               [filepath,filename,fileext] = fileparts(model);
+            elseif exist([model '.stan'],'file')==2
+               [filepath,filename,fileext] = fileparts(model);
+            else               
+               % Could be the name for a model defined in modelCode
+               [filepath,filename,fileext] = fileparts(model);
+               %error('file does not exist');
+            end
+         else
+            error('bad model');
+         end
+         if isempty(filepath)
+            self.modelHome = pwd;
+         else
+            self.modelHome = filepath;
+            % check that existing modelHome clashes?
+         end
+         % Looks like model must exist with extension .stan, but compiling
+         % requires passing the name without extension?
+         self.model = filename;
+         % trigger reread of modelStr
+      end
       
-      function id = get.id(self)
-         id = self.params.id;
+      function set.modelCode(self,model)
+         % NEED A FILENAME
+         if any(strncmp('data',model,4)) || any(strncmp('parameters',model,10)) || any(strncmp('model',model,5))
+            % model string, assuming model is a cell array of strings            
+            if exist(fullfile(self.modelHome,[self.model '.stan']),'file') == 2
+               % Model file already exists
+               if self.modelCodeOverwrite
+                  self.writeTextFile(fullfile(self.modelHome,[self.model '.stan']),model);
+               else
+                  [filename,filepath] = uiputfile('*.stan');
+                  self.model = fullfile(filepath,filename);
+                  self.writeTextFile(fullfile(self.modelHome,[self.model '.stan']),model);
+               end
+            else
+               self.writeTextFile(fullfile(self.modelHome,[self.model '.stan']),model);
+            end
+         else
+            error('does not look like a stan model');
+         end         
+         % trigger recompile?
       end
-      function iter = get.iter(self)
-         iter = self.params.sample.num_samples;
+      
+      function modelCode = get.modelCode(self)
+         try
+            if ~strncmp(self.modelHome,'http',4)
+               str = urlread(['file:///' fullfile(self.modelHome,[self.model '.stan'])]);
+            else
+               str = urlread(fullfile(self.modelHome,[self.model '.stan']));
+            end
+            modelCode = regexp(str,'(\r\n|\n|\r)','split')';
+         catch err
+            if strcmp(err.identifier,'MATLAB:urlread:ConnectionFailed')
+               fprintf('file does not exist\n');
+               modelCode = {};
+            else
+               rethrow(err);
+            end
+         end
       end
-      function warmup = get.warmup(self)
-         warmup = self.params.sample.num_warmup;
-      end
-      function thin = get.thin(self)
-         thin = self.params.sample.thin;
-      end
-      function init = get.init(self)
-         init = self.params.init;
-      end
-      function seed = get.seed(self)
-         seed = self.params.random.seed;
-      end
+      
       
       function set.chains(self,nChains)
          if (nChains>java.lang.Runtime.getRuntime.availableProcessors) || (nChains<1)
@@ -135,15 +180,8 @@ classdef stan < handle
       end
       
       function set.refresh(self,refresh)
-         
+         % reasonable default
          self.refresh = refresh;
-      end
-      
-      function command = get.command(self)
-         % add a prefix and postfix property according to os
-         command = {['./' self.model ' ']};
-         str = parseParams(self.params,self.method);
-         command = cat(1,command,str);
       end
       
       function set(self,varargin)
@@ -176,7 +214,7 @@ classdef stan < handle
             % name of data file
             % read data into struct... what a mess...            
             % self.data = dump2struct()
-            self.data = 'file';
+            self.data = 'from file';
             % store filename in self.data_
             self.data_ = p.Results.data;
             % insert filename into params.data.file
@@ -184,6 +222,42 @@ classdef stan < handle
          else
             
          end
+      end
+      
+      function id = get.id(self)
+         id = self.params.id;
+      end
+      function iter = get.iter(self)
+         iter = self.params.sample.num_samples;
+      end
+      function warmup = get.warmup(self)
+         warmup = self.params.sample.num_warmup;
+      end
+      function thin = get.thin(self)
+         thin = self.params.sample.thin;
+      end
+      function init = get.init(self)
+         init = self.params.init;
+      end
+      function seed = get.seed(self)
+         seed = self.params.random.seed;
+      end
+      
+      function command = get.command(self)
+         % add a prefix and postfix property according to os
+         command = {[self.modelPath self.model ' ']};
+         %command = {['./' self.model ' ']};
+         str = parseParams(self.params,self.method);
+         command = cat(1,command,str);
+      end
+      
+      function sample(self)
+         % alias to run
+      end
+      function optimize(self)
+         
+      end
+      function diagnose(self)
       end
       
       function fit = run(self)
@@ -196,9 +270,13 @@ classdef stan < handle
          ind = strncmp(cmd,['file=' self.output],5+length(self.output));
          [path,name] = fileparts(self.output);
          for i = 1:self.chains
+            % Each chain written to separate file
             output{i} = [name '-' num2str(i) '.csv'];
             cmd{ind} = ['file=' output{i} ' '];
             command = sprintf('%s',cmd{:});
+            % Manage the RNG seed
+            % https://groups.google.com/forum/#!msg/stan-users/3goteHAsJGs/nRiOhi9xxqEJ
+            % https://groups.google.com/forum/#!searchin/stan-dev/seed/stan-dev/C8xa0hiSWLY/W6JC_35T1woJ
             p(i) = processManager('id',output{i},'command',command,...
                                'workingDir',self.modelPath,...
                                'wrap',100,...
@@ -221,29 +299,15 @@ classdef stan < handle
          end
       end
       
-      function self = print(self,file)
-         % this should allow multiple files and regexp. 
-         % note that passing regexp through in the command does not work,
-         % need to implment search in matlab
-         if nargin < 2
-            file = self.params.output.file;
-         end
-         command = [self.stanHome 'bin/print ' file];
-         p = processManager('command',command,...
-                            'workingDir',self.workingDir,...
-                            'wrap',100,...
-                            'keepStdout',false);
-         p.block(0.05);
-      end
       
       function help(self,str)
          % if str is stanc or other basic binary
          
          %else
          % need to check that model binary exists
-         command = [[self.modelPath self.model] ' ' str ' help'];
+         command = [fullfile(self.modelHome,self.model) ' ' str ' help'];
          p = processManager('id','stan help','command',command,...
-                            'workingDir',self.modelPath,...
+                            'workingDir',self.modelHome,...
                             'wrap',100,...
                             'keepStdout',true,...
                             'printStdout',false);
@@ -257,12 +321,12 @@ classdef stan < handle
          end
       end
       
-      function self = compile(self,target)
+      function compile(self,target)
          if any(strcmp({'stanc' 'libstan.a' 'libstanc.a' 'print'},target))
             command = ['make bin/' target];
             printStderr = false;
          elseif strcmp(target,'model')
-            command = ['make ' self.modelPath self.model];
+            command = ['make ' fullfile(self.modelHome,self.model)];
             printStderr = true;
          else
             error('Unknown target');
@@ -377,6 +441,15 @@ classdef stan < handle
                                 'refresh',{{{'numeric'} {'scalar','>',0}}});
       end
       
+      function count = writeTextFile(filename,contents)
+         fid = fopen(filename,'w');
+         if fid ~= -1
+            count = fprintf(fid,'%s\n',contents{:});
+            fclose(fid);
+         else
+            error('Cannot open file to write');
+         end
+      end
    end
 end
 
