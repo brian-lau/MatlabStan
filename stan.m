@@ -123,7 +123,6 @@ classdef stan < handle
       function set.file(self,fname)
          if ~isempty(fname) && ischar(fname)
             if ischar(fname)
-               % expecting full name??
                if (exist(fname,'file')==2) || strncmp(fname,'http',4)
                   [filepath,filename,fileext] = fileparts(fname);
                elseif exist([fname '.stan'],'file')==2
@@ -168,10 +167,10 @@ classdef stan < handle
             return;
          end
          if ischar(model)
+            % Convert a char array into a cell array of strings by line
             model = regexp(model,'(\r\n|\n|\r)','split')';
          end
          if any(strncmp('data',model,4)) || any(strncmp('parameters',model,10)) || any(strncmp('model',model,5))
-            % A model string, assuming model is a cell array of strings            
             if exist(fullfile(self.working_dir,[self.model_name '.stan']),'file') == 2
                % Model file already exists
                if self.file_overwrite
@@ -179,7 +178,7 @@ classdef stan < handle
                   self.writeTextFile(self.file,model);
                else
                   [filename,filepath] = uiputfile('*.stan');
-                  [~,name,ext] = fileparts(filename);
+                  [~,name] = fileparts(filename);
                   self.model_name = name;%fullfile(filepath,filename);
                   self.model_home = filepath;
                   self.writeTextFile(fullfile(self.model_home,[self.model_name '.stan']),model);
@@ -278,7 +277,11 @@ classdef stan < handle
       function set.seed(self,seed)
          % handle chains > 1
          validateattributes(seed,self.validators.random.seed{1},self.validators.random.seed{2})
-         self.params.random.seed = seed;
+         if seed < 0
+            self.params.random.seed = round(sum(100*clock));
+         else
+            self.params.random.seed = seed;
+         end
       end
       function seed = get.seed(self)
          seed = self.params.random.seed;
@@ -290,6 +293,14 @@ classdef stan < handle
       end
       function name = get.diagnostic_file(self)
          name = self.params.output.diagnostic_file;
+      end
+      function set.sample_file(self,name)
+         if ischar(name)
+            self.params.output.file = name;
+         end
+      end
+      function name = get.sample_file(self)
+         name = self.params.output.file;
       end
 
       function set.data(self,d)
@@ -369,18 +380,18 @@ classdef stan < handle
             fprintf('sampling with %g chains...\n',self.chains);
          end
          
-         cmd = self.command;
-         ind = strncmp(cmd,['file=' self.sample_file],5+length(self.sample_file));
-         [path,name] = fileparts(self.sample_file);
+         chain_id = 1:self.chains;
+         [~,name,ext] = fileparts(self.sample_file);
+         base_name = self.sample_file;
+         base_seed = self.seed;
          for i = 1:self.chains
-            % Each chain written to separate file
-            sample_file{i} = [name '-' num2str(i) '.csv'];
-            cmd{ind} = ['file=' sample_file{i} ' '];
-            command = sprintf('%s',cmd{:});
-            % Manage the RNG seed >> random('unid',intmax)
-            % https://groups.google.com/forum/#!msg/stan-users/3goteHAsJGs/nRiOhi9xxqEJ
-            % https://groups.google.com/forum/#!searchin/stan-dev/seed/stan-dev/C8xa0hiSWLY/W6JC_35T1woJ
-            p(i) = processManager('id',sample_file{i},'command',command,...
+            sample_file{i} = [name '-' num2str(chain_id(i)) ext];
+            self.sample_file = sample_file{i};
+            % Advance seed according to some rule
+            self.seed = base_seed + chain_id(i);
+            % Fork process
+            p(i) = processManager('id',sample_file{i},...
+                               'command',sprintf('%s',self.command{:}),...
                                'workingDir',self.model_home,...
                                'wrap',100,...
                                'keepStdout',false,...
@@ -388,7 +399,30 @@ classdef stan < handle
                                'printStdout',true,...
                                'autoStart',false);
          end
+         self.sample_file = base_name;
+         self.seed = base_seed;
          self.processes = p;
+%          %keyboard
+%          cmd = self.command;
+%          ind = strncmp(cmd,['file=' self.sample_file],5+length(self.sample_file));
+%          [~,name] = fileparts(self.sample_file);
+%          for i = 1:self.chains
+%             % Each chain written to separate file
+%             sample_file{i} = [name '-' num2str(i) '.csv'];
+%             cmd{ind} = ['file=' sample_file{i} ' '];
+%             command = sprintf('%s',cmd{:});
+%             % Manage the RNG seed >> random('unid',intmax)
+%             % https://groups.google.com/forum/#!msg/stan-users/3goteHAsJGs/nRiOhi9xxqEJ
+%             % https://groups.google.com/forum/#!searchin/stan-dev/seed/stan-dev/C8xa0hiSWLY/W6JC_35T1woJ
+%             p(i) = processManager('id',sample_file{i},'command',command,...
+%                                'workingDir',self.model_home,...
+%                                'wrap',100,...
+%                                'keepStdout',false,...
+%                                'pollInterval',1,...
+%                                'printStdout',true,...
+%                                'autoStart',false);
+%          end
+%          self.processes = p;
 
          if nargout == 1
             fit = stanFit('processes',self.processes,'sample_file',sample_file);
@@ -540,8 +574,6 @@ classdef stan < handle
                                 'refresh',{{{'numeric'} {'scalar','>',0}}});
       end
       
-      function writeRdumpFile(filename)
-      end
       
       function count = writeTextFile(filename,contents)
          fid = fopen(filename,'w');
@@ -555,6 +587,7 @@ classdef stan < handle
    end
 end
 
+% https://github.com/stan-dev/rstan/search?q=stan_rdump&ref=cmdform
 % struct or containers.Map
 function fid = rdump(fname,content)
    if isstruct(content)
@@ -582,9 +615,11 @@ function fid = rdump(fname,content)
          fprintf(fid,'))\n')
       end
    end
-   
    fclose(fid);
 end
+
+
+
 % Generate command string from parameter structure. Very inefficient...
 % root = 'sample' 'optimize' or 'diagnose'
 % return a containers.Map?
