@@ -3,7 +3,7 @@ classdef stanFit < handle
       pars
       sim
 
-      output
+      sample_file
       exitValue
       hdr
       varNames
@@ -24,33 +24,47 @@ classdef stanFit < handle
          p.KeepUnmatched= true;
          p.FunctionName = 'stanFit constructor';
          p.addParamValue('processes','',@(x) isa(x,'processManager'));
-         p.addParamValue('output',{},@iscell);
+         p.addParamValue('sample_file',{},@iscell);
          p.parse(varargin{:});
 
          if ~isempty(p.Results.processes)
             % Listen for exit from processManager
             lh = addlistener(p.Results.processes,'exit',@(src,evnt)extract(self,src,evnt));
          end
-         if ~isempty(p.Results.output)
-            self.output = p.Results.output;
-            self.exitValue = nan(size(self.output));
+         if ~isempty(p.Results.sample_file)
+            self.sample_file = p.Results.sample_file;
+            self.exitValue = nan(size(self.sample_file));
          end
          
       end
       function extract(self,src,evtdata)
          % need to id the chain that finished, load that data? or wait
          % until everyone is done???
-         %disp('detect')
-         self.exitValue(strcmp(self.output,src.id)) = src.exitValue;
+         
+         self.exitValue(strcmp(self.sample_file,src.id)) = src.exitValue;
          if all(self.exitValue == 0)
             disp('done');
-            for i = 1:numel(self.output)
-               fid = fopen(self.output{i});
+            for i = 1:numel(self.sample_file)
+               fid = fopen(self.sample_file{i});
                [self.hdr{i},self.varNames{i},self.samples{i}] = self.readStanCsv(fid);
                fclose(fid);
             end
          end
       end
+%       function self = print(self,file)
+%          % this should allow multiple files and regexp. 
+%          % note that passing regexp through in the command does not work,
+%          % need to implment search in matlab
+%          if nargin < 2
+%             file = self.params.output.file;
+%          end
+%          command = [self.stanHome 'bin/print ' file];
+%          p = processManager('command',command,...
+%                             'workingDir',self.workingDir,...
+%                             'wrap',100,...
+%                             'keepStdout',false);
+%          p.block(0.05);
+%       end
    end
    
    methods(Static)
