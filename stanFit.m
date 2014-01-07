@@ -1,9 +1,12 @@
+% TODO: should be able to construct stanfit object from just csv files
 classdef stanFit < handle
    properties
       model
       processes % not sure I need this, although for long runs, can stop here...
 
       pars
+      dims
+      %flat_pars
       sim
 
       sample_file
@@ -119,7 +122,8 @@ classdef stanFit < handle
                self.sample_file_hdr{i} = hdr;
             end
             self.pars = names;
-            
+            self.dims = dims;
+            %self.flat_pars = flatNames;
             %TODO, we need to cache a permutation index that will be
             %reproducible for each call to extract for each instance of
             %stanfit
@@ -145,6 +149,43 @@ classdef stanFit < handle
          p.block(0.05);
       end
       
+      function traceplot(self,varargin)
+         % check if I passed in an extracted struct already
+         %out = extract(self,varargin{:});
+         
+         out = extract(self,'permuted',false,'inc_warmup',true);
+         maxRows = 8;
+         
+         fn = fieldnames(out);
+         nPars = numel(fn);
+         if nPars < maxRows;
+            maxRows = nPars;
+         end
+         figure;
+         count = 1;
+         for i = 1:nPars
+            % FIXME: will not work for n-D parameters! Recursion?
+            for j = 1:size(out(1).(fn{i}),2)
+               subplot(maxRows,1,count); hold on
+               % Grab all chains for given parameter index
+               temp = arrayfun(@(x) x.(fn{i})(:,j),out,'uni',false);
+               plot(cell2mat(temp));
+               %for k = 1:nChains
+               %   plot(out(k).(fn{i})(:,j));
+               %end
+               if isvector(out(1).(fn{i}))
+                  title(fn{i})
+               elseif ismatrix(out(1).(fn{i}))
+                  title([fn{i} num2str(j)])
+               end
+               count = count + 1;
+               if count > maxRows
+                  figure;
+                  count = 1;
+               end
+            end
+         end
+      end
    end
    
    methods(Static)
