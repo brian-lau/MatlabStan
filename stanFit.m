@@ -52,12 +52,13 @@ classdef stanFit < handle
             self.sample_file = p.Results.sample_file;
             self.exitValue = nan(size(self.sample_file));
          end
-         %self.sim = struct('hdr','','pars','','samples','');
-         %self.sim = struct('hdr','','samples','');
-         %self.sim = 
       end
       
       function out = extract(self,varargin)
+         if ~all(self.exitValue==0)
+            disp('not done')
+            return;
+         end
          p = inputParser;
          p.KeepUnmatched= false;
          p.FunctionName = 'stanFit extract';
@@ -98,6 +99,7 @@ classdef stanFit < handle
             end
             % TODO actually permute...
          else
+            % TODO?
             % return an array of three dimensions: iterations, chains, parameters
             out = rmfield(self.sim,setxor(fn,pars));
          end
@@ -132,20 +134,26 @@ classdef stanFit < handle
             %stanfit
          end
       end
-%       function self = print(self,file)
-%          % this should allow multiple files and regexp. 
-%          % note that passing regexp through in the command does not work,
-%          % need to implment search in matlab
-%          if nargin < 2
-%             file = self.params.output.file;
-%          end
-%          command = [self.stanHome 'bin/print ' file];
-%          p = processManager('command',command,...
-%                             'workingDir',self.workingDir,...
-%                             'wrap',100,...
-%                             'keepStdout',false);
-%          p.block(0.05);
-%       end
+      
+      function self = print(self,file)
+         % this should allow multiple files and regexp. 
+         % note that passing regexp through in the command does not work,
+         % need to implment search in matlab
+         if nargin < 2
+            file = self.sample_file;
+         end
+         if ischar(file)
+            command = [self.model.stan_home filesep 'bin/print ' file];
+         elseif iscell(file)
+            command = [self.model.stan_home filesep 'bin/print ' sprintf('%s ',file{:})];
+         end
+         p = processManager('command',command,...
+                            'workingDir',self.model.working_dir,...
+                            'wrap',100,...
+                            'keepStdout',false);
+         p.block(0.05);
+      end
+      
    end
    
    methods(Static)
@@ -183,7 +191,6 @@ classdef stanFit < handle
       function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSamples)
          % Could probably be replaced with a few regexp expressions...
          %
-         
          % As of Stan 2.0.1, variables may not contain periods.
          % Periods are used to separate dimensions of vector and array variables
          splitNames = regexp(flatNames, '\.', 'split');
