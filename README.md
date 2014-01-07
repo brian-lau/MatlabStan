@@ -7,11 +7,11 @@ For more information on Stan and its modeling language, see the Stan User's Guid
 The interface is very prelimenary, and subject to changes as I get through testing. Should be cleaned up soon...
 
 ## Installation
-+[CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html) is required. Installation instructions here.
-+[MatlabStan](https://github.com/brian-lau/MatlabStan/archive/master.zip) is required.
-+[MatlabProcessManager](https://github.com/brian-lau/MatlabProcessManager/archive/master.zip) is required.
+* [CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html) is required. Installation instructions here.
+* [MatlabStan](https://github.com/brian-lau/MatlabStan/archive/master.zip) is required.
+* [MatlabProcessManager](https://github.com/brian-lau/MatlabProcessManager/archive/master.zip) is required.
 
-processManager was developed and tested on OSX with Matlab 2012a, but should work on all platforms that Matlab supports, so long as it is running >=R2008a (for handle objects) with JDK >=1.1 (this will always be true unless you changed the default JDK).
+Add the Matlab files to your path. Currently, you have to tell the Matlab class where Stan lives, either by setting the stan_home attribute or editing the class (stan.m) directly.
 
 ###Optional
 Installing Steve Eddins's [linewrap](http://www.mathworks.com/matlabcentral/fileexchange/9909-line-wrap-a-string) function is useful for dealing with unwrapped messages. His [xUnit test framework](http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework) is required if you want to run the unit tests.
