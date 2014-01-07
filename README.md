@@ -1,8 +1,10 @@
 # MatlabStan
-
 A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference using the No-U-Turn sampler, a variant of Hamiltonian Monte Carlo.
 
 For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at http://mc-stan.org/.
+
+## Status
+The interface is very prelimenary, and subject to changes as I get through testing. Should be cleaned up soon...
 
 ## Installation
 +[CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html) is required. Installation instructions here.
