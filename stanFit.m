@@ -62,20 +62,24 @@ classdef stanFit < handle
          p.KeepUnmatched= false;
          p.FunctionName = 'stanFit extract';
          p.addParamValue('pars',{},@(x) iscell(x) || ischar(x));
-         p.addParamValue('permuted',false,@islogical);
-         p.addParamValue('inc_warmup',true,@islogical);
+         p.addParamValue('permuted',true,@islogical);
+         p.addParamValue('inc_warmup',false,@islogical);
          p.parse(varargin{:});
          
-         if isempty(p.Results.pars)
-            pars = self.sim(1).pars;
+         req_pars = p.Results.pars;
+         if ischar(req_pars)
+            req_pars = {req_pars};
+         end
+         if isempty(req_pars)
+            pars = self.pars;
          else
-            ind = ismember(p.Results.pars,self.sim(1).pars);
+            ind = ismember(req_pars,self.pars);
             if ~any(ind)
                error('bad pars');
             else
-               pars = p.Results.pars(ind);
+               pars = req_pars(ind);
                if any(~ind)
-                  temp = p.Results.pars(~ind);
+                  temp = req_pars(~ind);
                   warning('%s requested but not found, dropping',temp{:});
                end
             end
@@ -85,16 +89,17 @@ classdef stanFit < handle
             warning('Warmup samples requested, but were not saved when model run');
          end
          
-         keyboard
-         
-         %sim = self.sim;
-         
+         fn = fieldnames(self.sim);
          if p.Results.permuted
-            
+
+            out = struct;
+            for i = 1:numel(pars)
+               out.(pars{i}) = cat(1,self.sim.(pars{i}));
+            end
+            % TODO actually permute...
          else
             % return an array of three dimensions: iterations, chains, parameters
-            out.pars = pars;
-            out.samples
+            out = rmfield(self.sim,setxor(fn,pars));
          end
       end
       
@@ -107,24 +112,24 @@ classdef stanFit < handle
          if all(self.exitValue == 0)
             disp('done');
             for i = 1:numel(self.sample_file)
-               % FIXME, implement checking that all chains have same
-               % parameters and settings
-               [hdr,varNames,samples] =  self.read_stan_csv(self.sample_file{i},self.model.inc_warmup);
-               %self.sim(i) = struct('hdr',hdr,'pars',{varNames},'samples',samples);
-%               keyboard
-%                self.sim(i) = struct('hdr',hdr','pars',{varNames},...
-%                   'samples',cell2struct(num2cell(samples,1),varNames,2));
+               % FIXME: implement checking that all chains have same parameters and settings
+               [hdr,flatNames,flatSamples] =  self.read_stan_csv(self.sample_file{i},self.model.inc_warmup);
+               % FIXME: function checking
+               [names,dims,samples] = self.parse_flat_samples(flatNames,flatSamples);
+               % Fieldnames are dynamically created, so first assignment
+               % must overwrite default.
                if i == 1
-                  self.sim = cell2struct(num2cell(samples,1),varNames,2);
+                  self.sim = cell2struct(samples,names,2);
                else
-                  self.sim(i) = cell2struct(num2cell(samples,1),varNames,2);
-%                   self.sim = cell2struct(cat(2,hdr,num2cell(samples,1)),cat(2,{'hdr'},varNames),2);
-%                else
-%                   self.sim(i) = cell2struct(cat(2,hdr,num2cell(samples,1)),cat(2,{'hdr'},varNames),2);
+                  self.sim(i) = cell2struct(samples,names,2);
                end
                self.sample_file_hdr{i} = hdr;
-               %self.sim(i) = struct('hdr',hdr,'samples',containers.Map(varNames,num2cell(samples,1)));
             end
+            self.pars = names;
+            
+            %TODO, we need to cache a permutation index that will be
+            %reproducible for each call to extract for each instance of
+            %stanfit
          end
       end
 %       function self = print(self,file)
@@ -154,14 +159,9 @@ classdef stanFit < handle
                line{count} = l;
             else
                varNames = regexp(l, '\,', 'split');
-               % As of Stan 2.0.1, variables may not contain periods.
-               % Periods are used to separate vector and array variables,
-               % but cannot be used as fieldnames
-               varNames = regexprep(varNames, '\.','_');
                if ~inc_warmup
-                  % As of Stan 2.0.1, these lines exist when warmup is not
-                  % saved
-                  for i = 1:4 % ASSUMES 4 lines, should generalize
+                  % As of Stan 2.0.1, these lines exist when warmup is not saved
+                  for i = 1:4 % FIXME: assumes 4 lines, should generalize?
                      line{count} = fgetl(fid);
                      count = count + 1;
                   end
@@ -178,6 +178,39 @@ classdef stanFit < handle
          samples = textscan(fid,cols,'CollectOutput',true,'CommentStyle','#','Delimiter',',');
          samples = samples{1};
          fclose(fid);
+      end
+      
+      function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSamples)
+         % Could probably be replaced with a few regexp expressions...
+         %
+         
+         % As of Stan 2.0.1, variables may not contain periods.
+         % Periods are used to separate dimensions of vector and array variables
+         splitNames = regexp(flatNames, '\.', 'split');
+         for j = 1:numel(splitNames)
+            names{j} = splitNames{j}{1};
+         end
+         varNames = unique(names,'stable');
+         for j = 1:numel(varNames)
+            ind = strcmp(names,varNames{j});
+            
+            % Parse dimensionality of parameter
+            temp = cat(1,splitNames{ind});
+            temp(:,1) = [];
+            if size(temp,2) == 0
+               varDims{j} = [1 1];
+            elseif size(temp,2) == 1
+               varDims{j} = [max(str2num(cat(1,temp{:,1}))) 1];
+            else
+               for k = 1:size(temp,2)
+                  varDims{j}(k) = max(str2num(cat(1,temp{:,k})));
+               end
+            end
+            
+            % Convert flat samples to correct shape
+            temp = flatSamples(:,ind);
+            varSamples{j} = reshape(temp,[length(temp) varDims{j}]);
+         end
       end
    end
 end
