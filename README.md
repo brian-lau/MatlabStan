@@ -15,6 +15,7 @@ processManager was developed and tested on OSX with Matlab 2012a, but should wor
 Installing Steve Eddins's [linewrap](http://www.mathworks.com/matlabcentral/fileexchange/9909-line-wrap-a-string) function is useful for dealing with unwrapped messages. His [xUnit test framework](http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework) is required if you want to run the unit tests.
 
 ##Examples
+This is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The following can be compared to the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) versions.
 ```
 schools_code = {
    'data {'
