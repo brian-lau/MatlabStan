@@ -1,32 +1,23 @@
 classdef stanFit < handle
-%    properties(GetAccess = public, SetAccess = immutable)
-%    end
    properties
       model
       processes % not sure I need this, although for long runs, can stop here...
-      %data
-      
+
       pars
       sim
 
       sample_file
       sample_file_hdr
-      diagnostic_file
+      %diagnostic_file
       
-      exitValue
-      %hdr
-      %varNames
-      %samples
-      %sim
-      
+      exitValue      
+   end
+   properties(GetAccess = public, SetAccess = protected)
+      version = '0.0.0';
    end
    
-   properties
-      params
-   end
    methods
       function self = stanFit(varargin)
-         
          if nargin == 0
             return;
          end
