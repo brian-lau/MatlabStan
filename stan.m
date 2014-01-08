@@ -411,7 +411,7 @@ classdef stan < handle
       function command = get.command(self)
          % FIXME: add a prefix and postfix property according to os?
          command = {[fullfile(self.model_home,self.model_name) ' ']};
-         str = parseParams(self.params,self.method);
+         str = mstan.parse_stan_params(self.params,self.method);
          command = cat(1,command,str);
       end
       
@@ -609,58 +609,4 @@ classdef stan < handle
       end
    end
 
-end
-
-
-% Generate command string from parameter structure. Very inefficient...
-% root = 'sample' 'optimize' or 'diagnose'
-% return a containers.Map?
-function str = parseParams(s,root)
-   branch = {'sample' 'optimize' 'diagnose' 'static' 'nuts' 'nesterov' 'bfgs'};
-   if nargin == 2
-      branch = branch(~strcmp(branch,root));
-      fn = fieldnames(s);
-      d = intersect(fn,branch);
-      s = rmfield(s,d);
-   end
-
-   fn = fieldnames(s);
-   val = '';
-   str = {};
-   for i = 1:numel(fn)
-      try
-         if isstruct(s.(fn{i}))
-            % If any of the fieldnames match the *previous* value, assume the
-            % previous value is a selector from amongst the fielnames, and
-            % delete the other branches
-            if any(strcmp(fieldnames(s),val))
-               root = val;
-               branch = branch(~strcmp(branch,root));
-               d = intersect(fieldnames(s),branch);
-               s = rmfield(s,d);
-
-               str2 = parseParams(s.(root));
-               s = rmfield(s,root);
-               str = cat(1,str,str2);
-            else
-               if ~strcmp(fn{i},val)
-                  str = cat(1,str,{sprintf('%s ',fn{i})});
-                  %fprintf('%s \\\n',fn{i});
-               end
-               str2 = parseParams(s.(fn{i}));
-               str = cat(1,str,str2);
-            end
-         else
-            val = s.(fn{i});
-            if isnumeric(val) || islogical(val)
-               val = num2str(val);
-            end
-            str = cat(1,str,{sprintf('%s=%s ',fn{i},val)});
-            %fprintf('%s=%s \\\n',fn{i},val);
-         end
-      catch
-         % We trimmed a branch,
-         %fprintf('dropping\n')
-      end
-   end
 end
