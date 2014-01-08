@@ -45,7 +45,7 @@ schools_dat = struct('J',8,...
                      'y',[28 8 -3 7 -1 1 18 12],...
                      'sigma',[15 10 16 11 9 11 10 18]);
 
-fit = stan('model_code',schools_code,'data',schools_dat).sampling();
+fit = stan('model_code',schools_code,'data',schools_dat);
 
 print(fit);
 
