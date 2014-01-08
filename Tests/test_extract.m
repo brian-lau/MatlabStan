@@ -16,7 +16,7 @@ ex_model_code = {
 '}'
 };
 
-fit = stan('model_code',ex_model_code).sampling();
+fit = stan('model_code',ex_model_code);
 
 ss = fit.extract('permuted',true);
 alpha = ss.alpha;
@@ -37,3 +37,9 @@ assertEqual(size(beta),[4000 2]);
 lp__ = fit.extract('pars','lp__','permuted',true).lp__;
 assertEqual(size(lp__),[4000 1]);
 
+% extract retrieves same permutation sequence
+ss = fit.extract('permuted',true);
+ss2 = fit.extract('permuted',true);
+assertEqual(ss,ss2);
+
+ss = fit.extract('permuted',false);

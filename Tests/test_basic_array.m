@@ -1,19 +1,3 @@
-% % Rstan help for extract method
-% ex_model_code = {
-% 'parameters {'
-% '  real alpha[2,3];'
-% '  real beta[2]; '
-% '} '
-% 'model {'
-% '  for (i in 1:2) for (j in 1:3) '
-% '    alpha[i, j] ~ normal(0, 1); '
-% '  for (i in 1:2) '
-% '    beta ~ normal(0, 2); '
-% '} '
-% };
-% 
-% fit = stan('model_code', ex_model_code).sampling();
-% 
 %https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_basic_array.py
 model_code = {
 'data {'
@@ -30,7 +14,7 @@ model_code = {
 '}'
 };
 
-fit = stan('model_code',model_code).sampling('data',struct('K',4));
+fit = stan('model_code',model_code,'data',struct('K',4));
 
 % extract, permuted = true
 beta = fit.extract().beta;

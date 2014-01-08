@@ -1,7 +1,7 @@
 % TODO: 
 % x permutation index
 % should be able to construct stanfit object from just csv files
-classdef stanFit < handle
+classdef StanFit < handle
    properties
       model
       processes % not sure I need this, although for long runs, can stop here...
@@ -23,15 +23,15 @@ classdef stanFit < handle
    end
    
    methods
-      function self = stanFit(varargin)
+      function self = StanFit(varargin)
          if nargin == 0
             return;
          end
       
          p = inputParser;
          p.KeepUnmatched= true;
-         p.FunctionName = 'stanFit constructor';
-         p.addParamValue('model','',@(x) isa(x,'stan'));
+         p.FunctionName = 'StanFit constructor';
+         p.addParamValue('model','',@(x) isa(x,'StanModel'));
          p.addParamValue('processes','',@(x) isa(x,'processManager'));
          p.addParamValue('seed',[],@isnumeric);
          p.addParamValue('sample_file',{},@iscell);
@@ -152,6 +152,8 @@ classdef stanFit < handle
          
          % Cache a permutation index to allow reproducible call to extract 
          % for each instance of stanfit. Do we need to worry about space?
+         % Perhaps set store a rng state based on seed passed to sampler?
+         % https://github.com/stan-dev/pystan/pull/26
          if all(self.exitValue == 0)
             nSamples = self.model.chains*self.model.iter;
             self.permute_index = randperm(nSamples);

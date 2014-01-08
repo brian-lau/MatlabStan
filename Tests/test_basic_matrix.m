@@ -1,3 +1,4 @@
+% https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_basic_matrix.py
 model_code = {
 'data {'
 'int<lower=2> K;'
@@ -13,12 +14,11 @@ model_code = {
 '}'
 };
 
-model = stan('model_code',model_code,...
-   'file_overwrite',true);
+% model = StanModel('model_code',model_code,'file_overwrite',true);
+% fit = model.sampling('data',struct('K',3,'D',4));
 
+fit = stan('model_code',model_code,'file_overwrite',true,'data',struct('K',3,'D',4));
 
-
-fit = model.sampling('data',struct('K',3,'D',4));
 beta = fit.extract().beta;
 assertEqual(size(beta),[4000 3 4]);
 beta_mean = mean(beta,1);

@@ -1,3 +1,4 @@
+%https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_basic.py
 bernoulli_model_code = {
 'data {'
 '    int<lower=0> N;'
@@ -14,7 +15,10 @@ bernoulli_model_code = {
 
 bernoulli_data = struct('N',10,'y',[0, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
 
-model = stan('model_code',bernoulli_model_code,...
-   'model_name','bernoulli','file_overwrite',true);
+% model = StanModel('model_code',bernoulli_model_code,...
+%    'model_name','bernoulli','file_overwrite',true);
+% fit = model.sampling('data',bernoulli_data);
 
-fit = model.sampling('data',bernoulli_data);
+fit = stan('model_code',bernoulli_model_code,...
+   'model_name','bernoulli','file_overwrite',true,...
+   'data',bernoulli_data);
