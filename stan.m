@@ -3,31 +3,31 @@
 % bash script for stan
 % https://groups.google.com/forum/?fromgroups#!topic/stan-dev/awcXvXxIfHg
 
-
-
 % TODO
 % expose remaining pystan parameters
+% package organization
 % inits
 % update for Stan 2.1.0
-% way to determined compiled status? checksum??? force first time compile?
 % dump reader (to load data as struct)
 % model definitions
+% x store seeds used for multiple chains
+% x way to determined compiled status? checksum??? force first time compile?
 %
 classdef stan < handle
-   properties(GetAccess = public, SetAccess = public)
+   properties(SetAccess = public)
       stan_home = '/Users/brian/Downloads/stan-2.0.1';
       working_dir
    end
-   properties(GetAccess = public, SetAccess = private)
+   properties(SetAccess = private)
       model_home % url or path to .stan file
    end
-   properties(GetAccess = public, SetAccess = public, Dependent = true)
+   properties(SetAccess = public, Dependent = true)
       file
       model_name
       model_code
       
       id 
-      iter %
+      iter
       warmup
       thin
       seed      
@@ -35,33 +35,33 @@ classdef stan < handle
       %algorithm
       init
       
+      inc_warmup
       sample_file
       diagnostic_file
       refresh
    end
-   properties(GetAccess = public, SetAccess = public)
+   properties(SetAccess = public)
       method
-      data % need to handle matrix versus filename, should have a callback
-
+      data 
       chains
 
-      inc_warmup
       verbose
-      file_overwrite = false;
+      file_overwrite
+      checksum_stan
+      checksum_binary
    end 
-   properties(GetAccess = public, SetAccess = private, Dependent = true)
+   properties(SetAccess = private)
       command
    end
-   properties(GetAccess = public, SetAccess = public)      % eventually private
+   properties(SetAccess = private, Hidden = true)
       params
       defaults
       validators
       
       file_
       model_name_
-      %model_code_
    end
-   properties(GetAccess = public, SetAccess = protected)
+   properties(SetAccess = protected)
       version = '0.0.0';
    end
 
@@ -69,7 +69,7 @@ classdef stan < handle
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% Constructor      
       function self = stan(varargin)
-         [self.defaults,self.validators] = self.stanParams();
+         [self.defaults,self.validators] = mstan.stan_params();
          self.params = self.defaults;
          self.working_dir = pwd;
 
@@ -86,9 +86,11 @@ classdef stan < handle
          p.addParamValue('inc_warmup',false);
          p.addParamValue('sample_file','',@ischar);
          p.addParamValue('refresh',self.defaults.output.refresh,@isnumeric);
+         p.addParamValue('verbose',false,@islogical);
          p.addParamValue('file_overwrite',false,@islogical);
          p.parse(varargin{:});
 
+         self.verbose = p.Results.verbose;
          self.file_overwrite = p.Results.file_overwrite;
          self.stan_home = p.Results.stan_home;
          self.file = p.Results.file;
@@ -163,10 +165,36 @@ classdef stan < handle
          path = fullfile(self.model_home,[self.model_name '.stan']);
       end
       
+      function binary_path = model_binary_path(self)
+         binary_path = fullfile(self.model_home,self.model_name);
+      end
       
 %       function bool = isValid(self)
 %       end
-%       function bool = isCompiled(self)
+      function bool = isCompiled(self)
+         %binary exists else false
+         %md5 matches cached md5 else false
+         bool = false;
+         if exist(self.model_binary_path,'file')
+            checksum = mstan.DataHash(self.model_binary_path);
+            if strcmp(checksum,self.checksum_binary)
+               bool = true;
+            end
+            return;
+         end
+      end
+      
+%       function set.checksum_binary(self,checksum)
+%          if exist(self.model_binary_path,'file')
+%             checksum2 = DataHash(self.model_binary_path);
+%             if strcmp(checksum,checksum2)
+%                self.checksum_binary = checksum;
+%             else
+%                error('checksums do not match');
+%             end
+%          else
+%             error('no matching file');
+%          end
 %       end
       
       function set.model_code(self,model)
@@ -191,7 +219,7 @@ classdef stan < handle
             return;
          end
          % Always reread file? Or checksum? or listen for property change?
-         model_code = read_lines(fullfile(self.model_home,self.file));
+         model_code = mstan.read_lines(fullfile(self.model_home,self.file));
       end
       
       function set.model_home(self,d)
@@ -200,7 +228,7 @@ classdef stan < handle
          elseif isdir(d)
             [~,fa] = fileattrib(d);
             if fa.UserWrite && fa.UserExecute
-               if ~strcmp(self.model_home,fa.Name)
+               if ~strcmp(self.model_home,fa.Name) && self.verbose
                   fprintf('New model_home set.\n');
                end
                self.model_home = fa.Name;
@@ -236,6 +264,9 @@ classdef stan < handle
       function set.refresh(self,refresh)
          % reasonable default?
          self.params.output.refresh = refresh;
+         %if ~self.verbose
+         %   self.verbose = true;
+         %end
       end
       
       function set.id(self,id)
@@ -332,7 +363,7 @@ classdef stan < handle
          if isstruct(d) || isa(d,'containers.Map')
             % how to contruct filename?
             fname = fullfile(self.working_dir,'temp.data.R');
-            rdump(fname,d);
+            mstan.rdump(fname,d);
             self.data = d;
             self.params.data.file = fname;
          elseif ischar(d)
@@ -360,7 +391,9 @@ classdef stan < handle
          p.addParamValue('init',self.init);
          p.addParamValue('seed',self.seed);
          p.addParamValue('chains',self.chains);
+         p.addParamValue('inc_warmup',self.inc_warmup);
          p.addParamValue('data',[]);
+         p.addParamValue('checksum_binary','',@isstr);
          p.parse(varargin{:});
 
          self.id = p.Results.id;
@@ -370,7 +403,9 @@ classdef stan < handle
          self.init = p.Results.init;
          self.seed = p.Results.seed;
          self.chains = p.Results.chains;
+         self.inc_warmup = p.Results.inc_warmup;
          self.data = p.Results.data;
+         self.checksum_binary = p.Results.checksum_binary;
       end
       
       function command = get.command(self)
@@ -389,14 +424,14 @@ classdef stan < handle
          self.set(varargin{:});
          self.method = 'sample';
          
-         % FIXME, won't work on PC
-         if ~exist(fullfile(self.model_home,self.model_name),'file')
+         if ~self.isCompiled
             fprintf('We have to compile the model first...\n');
-            self.compile('model');
+            self.compile();
          end
-%            self.compile('model');
          
-         fprintf('Stan is sampling with %g chains...\n',self.chains);
+         if self.verbose
+            fprintf('Stan is sampling with %g chains...\n',self.chains);
+         end
          
          chain_id = 1:self.chains;
          [~,name,ext] = fileparts(self.sample_file);
@@ -406,24 +441,22 @@ classdef stan < handle
             sample_file{i} = [name '-' num2str(chain_id(i)) ext];
             self.sample_file = sample_file{i};
             % Advance seed according to some rule
-            self.seed = base_seed + chain_id(i); 
-            % Fork process
+            self.seed = base_seed + chain_id(i);
+            seed(i) = self.seed;
             p(i) = processManager('id',sample_file{i},...
                                'command',sprintf('%s',self.command{:}),...
                                'workingDir',self.model_home,...
                                'wrap',100,...
                                'keepStdout',false,...
                                'pollInterval',1,...
-                               'printStdout',true,...
+                               'printStdout',self.verbose,...
                                'autoStart',false);
          end
          self.sample_file = base_name;
          self.seed = base_seed;
-         %self.processes = p;
 
-         if nargout == 1
-            fit = stanFit('model',self,'processes',p,'sample_file',sample_file);
-         end
+         fit = stanFit('model',self,'processes',p,'seed',seed,'sample_file',sample_file);
+         
          p.start();
       end
       
@@ -463,7 +496,7 @@ classdef stan < handle
             printStderr = false;
          elseif strcmp(target,'model')
             command = ['make ' fullfile(self.model_home,self.model_name)];
-            printStderr = true;
+            printStderr = and(true,self.verbose);
          else
             error('Unknown target');
          end
@@ -471,9 +504,11 @@ classdef stan < handle
                             'command',command,...
                             'workingDir',self.stan_home,...
                             'printStderr',printStderr,...
-                            'keepStderr',true,...
-                            'keepStdout',true);
+                            'printStdout',self.verbose);
          p.block(0.05);
+         if strcmp(target,'model')
+            self.checksum_binary = mstan.DataHash(fullfile(self.model_home,self.model_name));
+         end
       end
       
 %       function disp(self)
@@ -534,12 +569,14 @@ classdef stan < handle
                if ~strcmp(ext,'.stan')
                   error('include extension');
                end
-               if ~((exist([name ext],'file')==2) || strncmp(path,'http',4))
+               %if ~((exist([name ext],'file')==2) || strncmp(path,'http',4))
+               if ~((exist(arg,'file')==2) || strncmp(path,'http',4))
                   error('file does not exist');
                end
                self.file_ = [name ext];
                self.model_name_ = name;
                self.model_home = path;
+               self.checksum_stan = mstan.DataHash(self.model_path);
             case {'model_code'}
                % model name exists (default anon)
                % model home exists
@@ -548,22 +585,22 @@ classdef stan < handle
                if isempty(self.model_home)
                   self.model_home = self.working_dir;
                end
-               fname = fullfile(self.model_home,[self.model_name '.stan']);
+               fname = self.model_path;
                if exist(fname,'file') == 2
                   % Model file already exists
                   if self.file_overwrite
-                     write_lines(fname,arg);
+                     mstan.write_lines(fname,arg);
                      self.update_model('file',fname);
                   else
                      [filename,filepath] = uiputfile('*.stan','Name stan model');
                      [~,name] = fileparts(filename);
                      self.model_name_ = name;
                      self.model_home = filepath;
-                     write_lines(fullfile(self.model_home,[self.model_name '.stan']),arg);
-                     self.update_model('file',fullfile(self.model_home,[self.model_name '.stan']));
+                     mstan.write_lines(self.model_path,arg);
+                     self.update_model('file',self.model_path);
                   end
                else
-                  write_lines(fname,arg);
+                  mstan.write_lines(fname,arg);
                   self.update_model('file',fname);
                end
             otherwise
@@ -572,168 +609,8 @@ classdef stan < handle
       end
    end
 
-   methods(Static)
-      function [params,valid] = stanParams()
-         % Default Stan parameters and validators. Should only contain
-         % parameters that are valid inputs to Stan cmd-line!
-         % validator can be
-         % 1) function handle
-         % 2) 1x2 cell array of cells, input to validateattributes first element is classes,
-         % second is attributes
-         % 3) cell array of strings representing valid arguments
-         params.sample = struct(...
-                               'num_samples',1000,...
-                               'num_warmup',1000,...
-                               'save_warmup',false,...
-                               'thin',1,...
-                               'adapt',struct(...
-                                              'engaged',true,...
-                                              'gamma',0.05,...
-                                              'delta',0.65,...
-                                              'kappa',0.75,...
-                                              't0',10),...
-                               'algorithm','hmc',...
-                               'hmc',struct(...
-                                            'engine','nuts',...
-                                            'static',struct('int_time',2*pi),...
-                                            'nuts',struct('max_depth',10),...
-                                            'metric','diag_e',...
-                                            'stepsize',1,...
-                                            'stepsize_jitter',0));
-         valid.sample = struct(...
-                               'num_samples',{{{'numeric'} {'scalar','>=',0}}},...
-                               'num_warmup',{{{'numeric'} {'scalar','>=',0}}},...
-                               'save_warmup',{{{'logical'} {'scalar'}}},...
-                               'thin',{{{'numeric'} {'scalar','>',0}}},...
-                               'adapt',struct(...
-                                              'engaged',{{{'logical'} {'scalar'}}},...
-                                              'gamma',{{{'numeric'} {'scalar','>',0}}},...
-                                              'delta',{{{'numeric'} {'scalar','>',0}}},...
-                                              'kappa',{{{'numeric'} {'scalar','>',0}}},...
-                                              't0',{{{'numeric'} {'scalar','>',0}}}),...
-                               'algorithm',{{'hmc'}},...
-                               'hmc',struct(...
-                                            'engine',{{'static' 'nuts'}},...
-                                            'static',struct('int_time',{{{'numeric'} {'scalar','>',0}}}),...
-                                            'nuts',struct('max_depth',{{{'numeric'} {'scalar','>',0}}}),...
-                                            'metric',{{'unit_e' 'diag_e' 'dense_e'}},...
-                                            'stepsize',1,...
-                                            'stepsize_jitter',0));
-
-         params.optimize = struct(...
-                                 'algorithm','bfgs',...
-                                 'nesterov',struct(...
-                                                   'stepsize',1),...
-                                 'bfgs',struct(...
-                                               'init_alpha',0.001,...
-                                               'tol_obj',1e-8,...
-                                               'tol_grad',1e-8,...
-                                               'tol_param',1e-8),...
-                                 'iter',2000,...
-                                 'save_iterations',false);
-
-         valid.optimize = struct(...
-                                 'algorithm',{{'nesterov' 'bfgs' 'newton'}},...
-                                 'nesterov',struct(...
-                                                   'stepsize',{{{'numeric'} {'scalar','>',0}}}),...
-                                 'bfgs',struct(...
-                                               'init_alpha',{{{'numeric'} {'scalar','>',0}}},...
-                                               'tol_obj',{{{'numeric'} {'scalar','>',0}}},...
-                                               'tol_grad',{{{'numeric'} {'scalar','>',0}}},...
-                                               'tol_param',{{{'numeric'} {'scalar','>',0}}}),...
-                                 'iter',{{{'numeric'} {'scalar','>',0}}},...
-                                 'save_iterations',{{{'logical'} {'scalar'}}});
-
-         params.diagnose = struct(...
-                                 'test','gradient');
-         valid.diagnose = struct(...
-                                 'test',{{{'gradient'}}});
-
-         params.id = 1; % 0 doesnot work as default
-         valid.id = {{'numeric'} {'scalar','>',0}};
-         params.data = struct('file','');
-         valid.data = struct('file',@isstr);
-         params.init = 2;
-         valid.init = {{'numeric' 'char'} {'nonempty'}}; % shitty validator
-         params.random = struct('seed',-1);
-         valid.random = struct('seed',{{{'numeric'} {'scalar'}}});
-
-         params.output = struct(...
-                                'file','samples.csv',...
-                                'append_sample',false,...
-                                'diagnostic_file','',...
-                                'append_diagnostic',false,...
-                                'refresh',100);
-         valid.output = struct(...
-                                'file',@isstr,...
-                                'append_sample',{{{'logical'} {'scalar'}}},...
-                                'diagnostic_file',@isstr,...
-                                'append_diagnostic',{{{'logical'} {'scalar'}}},...
-                                'refresh',{{{'numeric'} {'scalar','>',0}}});
-      end
-   end
 end
 
-function count = write_lines(filename,contents)
-   fid = fopen(filename,'w');
-   if fid ~= -1
-      count = fprintf(fid,'%s\n',contents{1:end-1});
-      count2 = fprintf(fid,'%s',contents{end});
-      count = count + count2;
-      fclose(fid);
-   else
-      error('Cannot open file to write');
-   end
-end
-
-function lines = read_lines(filename)
-   try
-      if strncmp(filename,'http',4)
-         str = urlread(filename);
-      else
-         str = urlread(['file:///' filename]);
-      end
-      lines = regexp(str,'(\r\n|\n|\r)','split')';
-   catch err
-      if strcmp(err.identifier,'MATLAB:urlread:ConnectionFailed')
-         %fprintf('File does not exist\n');
-         lines = {};
-      else
-         rethrow(err);
-      end
-   end
-end
-
-% https://github.com/stan-dev/rstan/search?q=stan_rdump&ref=cmdform
-% struct or containers.Map
-function fid = rdump(fname,content)
-   if isstruct(content)
-      vars = fieldnames(content);
-      data = struct2cell(content);
-   elseif isa(content,'containers.Map')
-      vars = content.keys;
-      data = content.values;
-   end
-
-   fid = fopen(fname,'wt');
-   for i = 1:numel(vars)
-      if isscalar(data{i})
-         fprintf(fid,'%s <- %d\n',vars{i},data{i});
-      elseif isvector(data{i})
-         fprintf(fid,'%s <- c(',vars{i});
-         fprintf(fid,'%d, ',data{i}(1:end-1));
-         fprintf(fid,'%d)\n',data{i}(end));
-      elseif ismatrix(data{i})
-         fprintf(fid,'%s <- structure(c(',vars{i});
-         fprintf(fid,'%d, ',data{i}(1:end-1));
-         fprintf(fid,'%d), .Dim = c(',data{i}(end));
-         fprintf(fid,'%g,',size(data{i},1));
-         fprintf(fid,'%g',size(data{i},2));
-         fprintf(fid,'))\n')
-      end
-   end
-   fclose(fid);
-end
 
 % Generate command string from parameter structure. Very inefficient...
 % root = 'sample' 'optimize' or 'diagnose'
