@@ -1,6 +1,7 @@
 % TODO: 
 % o permutation index, hmm looks like the behavior should be across stanFit
 % instances, need to save Matlab rng state
+% o clean up and generalize for both sampling and optim
 % o should be able to construct stanfit object from just csv files
 classdef StanFit < handle
    properties
@@ -24,6 +25,8 @@ classdef StanFit < handle
    end
    
    methods
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      %% Constructor      
       function self = StanFit(varargin)
          p = inputParser;
          p.KeepUnmatched= true;
@@ -31,7 +34,7 @@ classdef StanFit < handle
          p.addParamValue('model','',@(x) isa(x,'StanModel'));
          p.addParamValue('processes','',@(x) isa(x,'processManager'));
          p.addParamValue('seed',[],@isnumeric);
-         p.addParamValue('sample_file',{},@iscell);
+         p.addParamValue('sample_file',{},@(x) iscell(x));
          p.parse(varargin{:});
 
          if ~isempty(p.Results.model)
@@ -45,17 +48,19 @@ classdef StanFit < handle
             self.processes = p.Results.processes;
          end
          self.seed = p.Results.seed;
+         
          if ~isempty(p.Results.sample_file)
             self.sample_file = p.Results.sample_file;
             self.exitValue = nan(size(self.sample_file));
          end
-         
+
          if numel(self.processes) ~= numel(self.sample_file)
             error('must match');
          else
             self.sample_file_hdr = cell(1,numel(self.sample_file));
          end
       end
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       
       function sim = get.sim(self)
          if ~all(self.exitValue==0)
@@ -73,7 +78,7 @@ classdef StanFit < handle
          
          p = inputParser;
          p.KeepUnmatched= false;
-         p.FunctionName = 'stanFit extract';
+         p.FunctionName = 'StanFit extract';
          p.addParamValue('pars',{},@(x) iscell(x) || ischar(x));
          p.addParamValue('permuted',true,@islogical);
          p.addParamValue('inc_warmup',false,@islogical);
@@ -126,14 +131,18 @@ classdef StanFit < handle
       function process_exit(self,src,evtdata)
          % need to id the chain that finished, load that data? or wait
          % until everyone is done???
-
          ind = strcmp(self.sample_file,src.id);
          self.exitValue(ind) = src.exitValue;
          
          if isempty(self.sample_file_hdr{ind})
             %fprintf('Processing %s\n',src.id);
-            [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(self.sample_file{ind},...
-               self.model.inc_warmup);
+            if strcmp(self.model.method,'optimize')
+               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+                  self.sample_file{ind},true);
+            else
+               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+                  self.sample_file{ind},self.model.inc_warmup);
+            end
             [names,dims,samples] = self.parse_flat_samples(flatNames,flatSamples);
             
             temp(ind) = cell2struct(samples,names,2);

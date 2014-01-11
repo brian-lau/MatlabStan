@@ -7,12 +7,11 @@ p.FunctionName = 'stan';
 p.addParamValue('fit',[],@(x) isa(x,'StanFit'));
 p.parse(varargin{:});
 
-
 if isempty(p.Results.fit)
-   model = StanModel(p.Unmatched);
+   model = StanModel();
 else
    model = p.Results.fit.model;
 end
 
-fit = model.sampling();
+fit = model.sampling(p.Unmatched);
 

@@ -11,6 +11,7 @@
 % update for Stan 2.1.0
 % dump reader (to load data as struct)
 % model definitions
+% Windows
 % x way to determined compiled status? checksum??? force first time compile?
 %
 classdef StanModel < handle
@@ -115,7 +116,8 @@ classdef StanModel < handle
          % pass remaining inputs to set()
          self.set(p.Unmatched);
       end
-      
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
       function set.stan_home(self,d)
          [~,fa] = fileattrib(d);
          if fa.directory
@@ -166,7 +168,11 @@ classdef StanModel < handle
       end
       
       function binary_path = model_binary_path(self)
-         binary_path = fullfile(self.model_home,self.model_name);
+         if ispc
+            binary_path = fullfile(self.model_home,[self.model_name '.exe']);
+         else
+            binary_path = fullfile(self.model_home,self.model_name);
+         end
       end
       
 %       function bool = isValid(self)
@@ -206,6 +212,7 @@ classdef StanModel < handle
             return;
          end
          % Always reread file? Or checksum? or listen for property change?
+         % TODO: AbortSet should fix this
          model_code = mstan.read_lines(fullfile(self.model_home,self.file));
       end
       
@@ -376,6 +383,7 @@ classdef StanModel < handle
          p.addParamValue('chains',self.chains);
          p.addParamValue('inc_warmup',self.inc_warmup);
          p.addParamValue('data',[]);
+         p.addParamValue('verbose',self.verbose);
          p.addParamValue('checksum_binary',self.checksum_binary,@isstr);
          p.parse(varargin{:});
 
@@ -388,12 +396,12 @@ classdef StanModel < handle
          self.chains = p.Results.chains;
          self.inc_warmup = p.Results.inc_warmup;
          self.data = p.Results.data;
+         self.verbose = p.Results.verbose;
          self.checksum_binary = p.Results.checksum_binary;
       end
       
       function command = get.command(self)
-         % FIXME: add a prefix and postfix property according to os?
-         command = {[fullfile(self.model_home,self.model_name) ' ']};
+         command = {[self.model_binary_path ' ']};
          str = mstan.parse_stan_params(self.params,self.method);
          command = cat(1,command,str);
       end
@@ -403,10 +411,8 @@ classdef StanModel < handle
             error('stan:sampling:OutputFormat',...
                'Need to assign the fit to a variable');
          end
-         
          self.set(varargin{:});
-         self.method = 'sample';
-         
+         self.method = 'sample';         
          if ~self.isCompiled
             if 1%self.verbose
                fprintf('We have to compile the model first...\n');
@@ -417,7 +423,6 @@ classdef StanModel < handle
          if self.verbose
             fprintf('Stan is sampling with %g chains...\n',self.chains);
          end
-         
          chain_id = 1:self.chains;
          [~,name,ext] = fileparts(self.sample_file);
          base_name = self.sample_file;
@@ -426,6 +431,7 @@ classdef StanModel < handle
             sample_file{i} = [name '-' num2str(chain_id(i)) ext];
             self.sample_file = sample_file{i};
             % Advance seed according to some rule
+            % FIXME: what is the rule used by Pystan/Rstan?
             self.seed = base_seed + chain_id(i);
             seed(i) = self.seed;
             p(i) = processManager('id',sample_file{i},...
@@ -439,14 +445,44 @@ classdef StanModel < handle
          end
          self.sample_file = base_name;
          self.seed = base_seed;
-
-         fit = StanFit('model',self,'processes',p,'seed',seed,'sample_file',sample_file);
          
+         % FIXME: should be passing full filenames here or generating them
+         % in StanFit (ie, include working_dir)
+         fit = StanFit('model',self,'processes',p,'seed',seed,'sample_file',sample_file);
          p.start();
       end
       
-      function optimizing(self)
+      function fit = optimizing(self,varargin)
+         if nargout == 0
+            error('stan:optimizing:OutputFormat',...
+               'Need to assign the fit to a variable');
+         end
+         self.set(varargin{:});
+         self.method = 'optimize';
+         if ~self.isCompiled
+            if 1%self.verbose
+               fprintf('We have to compile the model first...\n');
+            end
+            self.compile();
+         end
+         
+         if self.verbose
+            fprintf('Stan is optimizing ...\n');
+         end
+         p = processManager('id',self.sample_file,...
+                            'command',sprintf('%s',self.command{:}),...
+                            'workingDir',self.model_home,...
+                            'wrap',100,...
+                            'keepStdout',false,...
+                            'pollInterval',1,...
+                            'printStdout',self.verbose,...
+                            'autoStart',false);
+
+         %lh = addlistener(p,'exit',@(src,evnt)optim_exit(self,src,evnt));
+         fit = StanFit('model',self,'processes',p,'sample_file',{self.sample_file});
+         p.start();
       end
+      
       function diagnose(self)
       end
       
@@ -456,7 +492,7 @@ classdef StanModel < handle
          
          %else
          % need to check that model binary exists
-         command = [fullfile(self.model_home,self.model_name) ' ' str ' help'];
+         command = [self.model_binary_path ' ' str ' help'];
          p = processManager('id','stan help','command',command,...
                             'workingDir',self.model_home,...
                             'wrap',100,...
@@ -480,7 +516,7 @@ classdef StanModel < handle
             command = ['make bin/' target];
             printStderr = false;
          elseif strcmp(target,'model')
-            command = ['make ' fullfile(self.model_home,self.model_name)];
+            command = ['make ' self.model_binary_path];
             printStderr = and(true,self.verbose);
          else
             error('Unknown target');
@@ -492,7 +528,7 @@ classdef StanModel < handle
                             'printStdout',self.verbose);
          p.block(0.05);
          if strcmp(target,'model')
-            self.checksum_binary = mstan.DataHash(fullfile(self.model_home,self.model_name));
+            self.checksum_binary = mstan.DataHash(self.model_binary_path);
          end
       end
       
@@ -592,6 +628,10 @@ classdef StanModel < handle
                error('');
          end
       end
+      
+%       function optim_exit(self,src,evtdata)
+% 
+%       end
    end
 
 end

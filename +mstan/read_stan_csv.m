@@ -1,6 +1,7 @@
 % TODO, end of csv has commented lines with timing info, should scan
 % also
 % is the inc_warmup flag necesasry here? function should be able to infer
+% inc_warmup = true works for optimizing files as well
 function [hdr,varNames,samples] = read_stan_csv(fname,inc_warmup)
    if nargin < 2
       inc_warmup = false;
