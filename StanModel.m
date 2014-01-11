@@ -15,7 +15,7 @@
 %
 classdef StanModel < handle
    properties(SetAccess = public)
-      stan_home = '/Users/brian/Downloads/stan-2.0.1';
+      stan_home = mstan.stan_home
       working_dir
    end
    properties(SetAccess = private)
@@ -30,7 +30,7 @@ classdef StanModel < handle
       iter
       warmup
       thin
-      seed      
+      seed
 
       %algorithm
       init
