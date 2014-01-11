@@ -1,0 +1,118 @@
+% xUnit framework required
+% http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework
+
+% ref 
+% https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_basic.py
+classdef TestBernoulli < TestCase
+   properties
+      model
+      fit
+      code
+      data
+   end
+   
+   methods
+      function self = TestBernoulli(name)
+         self = self@TestCase(name);
+
+         bernoulli_model_code = {
+         'data {'
+         '    int<lower=0> N;'
+         '    int<lower=0,upper=1> y[N];'
+         '}'
+         'parameters {'
+         '    real<lower=0,upper=1> theta;'
+         '}'
+         'model {'
+         'for (n in 1:N)'
+         '    y[n] ~ bernoulli(theta);'
+         '}'
+         };
+
+         bernoulli_data = struct('N',10,'y',[0, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
+
+         model = StanModel('model_code',bernoulli_model_code,...
+            'model_name','bernoulli','file_overwrite',true);
+         fit = model.sampling('data',bernoulli_data);
+         
+         self.model = model;
+         self.fit = fit;
+         self.code = bernoulli_model_code;
+         self.data = bernoulli_data;
+      end
+      
+      function setUp(self)
+      end
+      
+      function test_bernoulli_constructor(self)
+         model = self.model;
+         assertEqual(model.model_name,'bernoulli');
+         assertEqual(model.model_code,self.code);
+         assertTrue(exist('bernoulli.cpp','file')==2,'CPP file not generated');
+         if ispc
+            [~,fa] = fileattrib('bernoulli.exe');
+         else
+            [~,fa] = fileattrib('bernoulli');
+         end
+         assertTrue(fa.UserExecute,'Executable file not generated correctly');
+      end
+      
+      function test_bernoulli_sampling(self)
+         fit = self.fit;
+         %CHECK: iter in Pystan is the sum?
+         assertEqual(fit.model.iter+fit.model.warmup,2000);
+         assertTrue(all(ismember({'lp__','theta'},fieldnames(fit.sim))));
+         assertEqual(numel(fit.sim),4);
+         for i = 1:4
+            m = mean(fit.sim(i).theta);
+            assertTrue((0.1<m) && (m<0.4));
+            v = var(fit.sim(i).theta);
+            assertTrue((0.01<v) && (v<0.02));
+         end
+      end
+      
+      function test_bernoulli_sampling_error(self)
+         bad_data = self.model.data;
+         bad_data = rmfield(bad_data,'N');
+         % FIXME: currently this returns empty fit, with warnings. Make it
+         % throw a proper error
+         %fit = self.model.sampling('data',bad_data);
+      end
+      
+      function test_bernoulli_extract(self)
+         fit = self.fit;
+         extr = fit.extract('permuted',true);
+         assertTrue((-7.4<mean(extr.lp__)) && (mean(extr.lp__)<-7.0));
+         assertTrue((0.1<mean(extr.theta)) && (mean(extr.theta)<0.4));
+         assertTrue((0.01<var(extr.theta)) && (var(extr.theta)<0.02));
+         
+         % permuted=false
+         % CHECK:
+         extr = fit.extract('permuted',true);
+         
+         % permuted=true
+         extr = fit.extract('pars','lp__','permuted',true);
+         assertTrue((-7.4<mean(extr.lp__)) && (mean(extr.lp__)<-7.0));
+         extr = fit.extract('pars','theta','permuted',true);
+         assertTrue((0.1<mean(extr.theta)) && (mean(extr.theta)<0.4));
+         assertTrue((0.01<var(extr.theta)) && (var(extr.theta)<0.02));
+      end
+      
+      function test_bernoulli_random_seed_consistency(self)
+         for i = 1:2
+            fit = self.model.sampling('data',self.data,'seed',42);
+            theta{i} = fit.extract('pars','theta','permuted',true).theta;
+         end
+         % FIXME: This will fail. Currently permutations are specific to
+         % each instance of StanFit, not across instances
+         %assertEqual(theta{1},theta{2});
+      end
+      
+      function teardown(self)
+         delete(self.model);
+         delete(self.fit);
+         delete(self.code);
+      end
+   end
+   
+end
