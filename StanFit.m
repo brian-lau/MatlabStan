@@ -1,6 +1,7 @@
 % TODO: 
-% x permutation index
-% should be able to construct stanfit object from just csv files
+% o permutation index, hmm looks like the behavior should be across stanFit
+% instances, need to save Matlab rng state
+% o should be able to construct stanfit object from just csv files
 classdef StanFit < handle
    properties
       model
@@ -19,15 +20,11 @@ classdef StanFit < handle
       permute_index
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.0.0';
+      version = '0.1.0';
    end
    
    methods
       function self = StanFit(varargin)
-         if nargin == 0
-            return;
-         end
-      
          p = inputParser;
          p.KeepUnmatched= true;
          p.FunctionName = 'StanFit constructor';
@@ -58,6 +55,14 @@ classdef StanFit < handle
          else
             self.sample_file_hdr = cell(1,numel(self.sample_file));
          end
+      end
+      
+      function sim = get.sim(self)
+         if ~all(self.exitValue==0)
+            %disp('not done')
+            self.processes.block(0.05);
+         end
+         sim = self.sim;
       end
       
       function out = extract(self,varargin)
@@ -164,6 +169,7 @@ classdef StanFit < handle
          % TODO: this should allow multiple files and regexp. 
          % note that passing regexp through in the command does not work,
          % need to implment search in matlab
+         % TODO: return output as string
          if nargin < 2
             file = self.sample_file;
          end

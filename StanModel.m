@@ -5,12 +5,12 @@
 %
 % TODO
 % expose remaining pystan parameters
-% package organization
+% clean up parameter handling
+% package organization, should classes be in package?
 % inits
 % update for Stan 2.1.0
 % dump reader (to load data as struct)
 % model definitions
-% x store seeds used for multiple chains
 % x way to determined compiled status? checksum??? force first time compile?
 %
 classdef StanModel < handle
@@ -62,7 +62,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.0.0';
+      version = '0.1.0';
    end
 
    methods
@@ -184,19 +184,6 @@ classdef StanModel < handle
          end
       end
       
-%       function set.checksum_binary(self,checksum)
-%          if exist(self.model_binary_path,'file')
-%             checksum2 = DataHash(self.model_binary_path);
-%             if strcmp(checksum,checksum2)
-%                self.checksum_binary = checksum;
-%             else
-%                error('checksums do not match');
-%             end
-%          else
-%             error('no matching file');
-%          end
-%       end
-      
       function set.model_code(self,model)
          if isempty(model)
             return;
@@ -262,11 +249,7 @@ classdef StanModel < handle
       end
       
       function set.refresh(self,refresh)
-         % reasonable default?
          self.params.output.refresh = refresh;
-         %if ~self.verbose
-         %   self.verbose = true;
-         %end
       end
       
       function set.id(self,id)
@@ -393,7 +376,7 @@ classdef StanModel < handle
          p.addParamValue('chains',self.chains);
          p.addParamValue('inc_warmup',self.inc_warmup);
          p.addParamValue('data',[]);
-         p.addParamValue('checksum_binary','',@isstr);
+         p.addParamValue('checksum_binary',self.checksum_binary,@isstr);
          p.parse(varargin{:});
 
          self.id = p.Results.id;
@@ -425,7 +408,9 @@ classdef StanModel < handle
          self.method = 'sample';
          
          if ~self.isCompiled
-            fprintf('We have to compile the model first...\n');
+            if 1%self.verbose
+               fprintf('We have to compile the model first...\n');
+            end
             self.compile();
          end
          
