@@ -6,6 +6,8 @@ For more information on Stan and its modeling language, see the Stan User's Guid
 ## Status
 The interface is very prelimenary, and subject to changes as I get through testing. Should be cleaned up soon...
 
+Developed on Matlab 2012a and OSX. Should work on Windows, although someone needs to test it...
+
 ## Installation
 In addition to the code in this [repository](https://github.com/brian-lau/MatlabStan/archive/master.zip), the following are required
 * [CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html)
