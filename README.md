@@ -7,11 +7,11 @@ For more information on Stan and its modeling language, see the Stan User's Guid
 The interface is very prelimenary, and subject to changes as I get through testing. Should be cleaned up soon...
 
 ## Installation
-* [CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html) is required. Installation instructions here.
-* [MatlabStan](https://github.com/brian-lau/MatlabStan/archive/master.zip) is required.
-* [MatlabProcessManager](https://github.com/brian-lau/MatlabProcessManager/archive/master.zip) is required.
+In addition to the code in this [repository](https://github.com/brian-lau/MatlabStan/archive/master.zip), the following are required
+* [CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html)
+* [MatlabProcessManager 0.3.0+](https://github.com/brian-lau/MatlabProcessManager/)
 
-Add the Matlab files to your path. Currently, you have to tell the Matlab class where Stan lives, either by setting the stan_home attribute or editing the class (stan.m) directly.
+Add the Matlab files, as well as the parent directory of the `+mstan` [package](http://www.mathworks.com/help/matlab/matlab_oop/scoping-classes-with-packages.html#brfynt_-3) folder to your path. Currently, you have to tell the Matlab class Stan lives by editing the file `stan_home.m` in the `+mstan` directory to point to the parent folder of your installation.
 
 ###Optional
 Installing Steve Eddins's [linewrap](http://www.mathworks.com/matlabcentral/fileexchange/9909-line-wrap-a-string) function is useful for dealing with unwrapped messages. His [xUnit test framework](http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework) is required if you want to run the unit tests.
