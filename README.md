@@ -1,25 +1,23 @@
 # MatlabStan
-A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference using the No-U-Turn sampler, a variant of Hamiltonian Monte Carlo.
+A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference.
 
 For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at http://mc-stan.org/.
 
 ## Status
 The interface is very prelimenary, and subject to changes as I get through testing. Should be cleaned up soon...
 
-Developed on Matlab 2012a and OSX. Should work on Windows, although someone needs to test it...
+Developed on Matlab 2012a and OSX. Should work on Linux and Windows, although someone needs to test it...
 
 ## Installation
-In addition to the code in this [repository](https://github.com/brian-lau/MatlabStan/archive/master.zip), the following are required
-* [CmdStan 2.0.1+](http://mc-stan.org/cmdstan.html)
-* [MatlabProcessManager 0.3.0+](https://github.com/brian-lau/MatlabProcessManager/)
+1. Install CmdStan 2.1.0 or greater
+2. Install MatlabProcessManager 0.3.0+ or greater
+3. Install MatlabStan
 
-Add the Matlab files, as well as the parent directory of the `+mstan` [package](http://www.mathworks.com/help/matlab/matlab_oop/scoping-classes-with-packages.html#brfynt_-3) folder to your path. Edit the file `stan_home.m` in the `+mstan` directory to point to the parent folder of your installation.
+Details are provided in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
 
-###Optional
-Installing Steve Eddins's [linewrap](http://www.mathworks.com/matlabcentral/fileexchange/9909-line-wrap-a-string) function is useful for dealing with unwrapped messages. His [xUnit test framework](http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework) is required if you want to run the unit tests.
-
-##Examples
-This is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The following can be compared to the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) versions.
+##Example
+Examples can be found in various sections of the [wiki](https://github.com/brian-lau/MatlabStan/wiki).
+The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The following can be compared to the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) versions.
 ```
 schools_code = {
    'data {'
