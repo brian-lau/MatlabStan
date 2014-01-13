@@ -24,7 +24,7 @@ for i = 1:nPars
       end
       count = count + 1;
       if count > maxRows
-         if i < nPars
+         if i <= nPars
             figure;
             count = 1;
          end
