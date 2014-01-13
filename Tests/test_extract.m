@@ -23,7 +23,12 @@ alpha = ss.alpha;
 beta = ss.beta;
 lp__ = ss.lp__;
 
-assertEqual(fieldnames(ss),{'lp__' 'accept_stat__' 'stepsize__' 'treedepth__' 'alpha' 'beta'}');
+ver = fit.model.stan_version;
+if (ver{1}>=2) && (ver{2}>=1)
+   assertEqual(fieldnames(ss),{'lp__' 'accept_stat__' 'stepsize__' 'treedepth__' 'n_divergent__' 'alpha' 'beta'}');
+else
+   assertEqual(fieldnames(ss),{'lp__' 'accept_stat__' 'stepsize__' 'treedepth__' 'alpha' 'beta'}');
+end
 assertEqual(size(alpha),[4000 2 3]);
 assertEqual(size(beta),[4000 2]);
 assertEqual(size(lp__),[4000 1]);

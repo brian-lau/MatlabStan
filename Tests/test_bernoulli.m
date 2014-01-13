@@ -21,4 +21,9 @@ bernoulli_data = struct('N',10,'y',[0, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
 
 fit = stan('model_code',bernoulli_model_code,...
    'model_name','bernoulli','file_overwrite',true,...
-   'data',bernoulli_data);
+   'data',bernoulli_data,'verbose',true);
+
+% fit2 = stan('fit',fit,'iter',500000,'thin',10);
+% fit2.verbose = true;
+
+fit2 = stan('fit',fit,'iter',5000,'verbose',true);
