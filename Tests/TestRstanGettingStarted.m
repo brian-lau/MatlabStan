@@ -96,9 +96,11 @@ classdef TestRstanGettingStarted < TestCase
       function validate_data(fit)
          la = fit.extract();
          [mu,tau,eta,theta] = deal(la.mu,la.tau,la.eta,la.theta);
-         assertEqual(size(mu),[4000 1]);
-         assertEqual(size(tau),[4000 1]);
-         assertEqual(size(eta),[4000 8]);
+         % NOTE: these are the 2000 rather than 4000 to follow Pystan
+         % convention, which specifies that iter includes warmup
+         assertEqual(size(mu),[2000 1]);
+         assertEqual(size(tau),[2000 1]);
+         assertEqual(size(eta),[2000 8]);
          assertTrue((-1<mean(mu)) && (mean(mu)< 17));
          assertTrue((0<mean(tau)) && (mean(tau)<17));
          assertTrue(all(-3 < mean(eta)));

@@ -14,7 +14,9 @@ classdef TestBernoulli < TestCase
    methods
       function self = TestBernoulli(name)
          self = self@TestCase(name);
-
+      end
+      
+      function setUp(self)
          bernoulli_model_code = {
          'data {'
          '    int<lower=0> N;'
@@ -34,14 +36,16 @@ classdef TestBernoulli < TestCase
          model = StanModel('model_code',bernoulli_model_code,...
             'model_name','bernoulli','file_overwrite',true);
          fit = model.sampling('data',bernoulli_data);
+
+         % FIXME: pause to allow process to finish. Even with block(),
+         % there are cases where samples are read before file has completed
+         % writing???
+         pause(0.5);
          
          self.model = model;
          self.fit = fit;
          self.code = bernoulli_model_code;
          self.data = bernoulli_data;
-      end
-      
-      function setUp(self)
       end
       
       function test_bernoulli_constructor(self)
@@ -59,11 +63,12 @@ classdef TestBernoulli < TestCase
       
       function test_bernoulli_sampling(self)
          fit = self.fit;
-         %CHECK: iter in Pystan is the sum?
+         % iter in Pystan is the sum of sampling iters and warmup
          assertEqual(fit.model.iter+fit.model.warmup,2000);
          assertTrue(all(ismember({'lp__','theta'},fieldnames(fit.sim))));
          assertEqual(numel(fit.sim),4);
          for i = 1:4
+            assertEqual(size(fit.sim(i).theta,1),1000);
             m = mean(fit.sim(i).theta);
             assertTrue((0.1<m) && (m<0.4));
             v = var(fit.sim(i).theta);

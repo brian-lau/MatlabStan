@@ -1,22 +1,17 @@
-% note how init is handled for multiple chains
-% https://groups.google.com/forum/?fromgroups#!searchin/stan-users/command$20line/stan-users/2YNalzIGgEs/NbbDsM9R9PMJ
-% bash script for stan
-% https://groups.google.com/forum/?fromgroups#!topic/stan-dev/awcXvXxIfHg
 %
 % TODO
 % expose remaining pystan parameters
-% clean up parameter handling
-% package organization, should classes be in package?
 % inits
 % update for Stan 2.1.0
 % dump reader (to load data as struct)
 % model definitions
 % Windows
+% package organization, should classes be in package?
 % x way to determined compiled status? checksum??? force first time compile?
 %
 classdef StanModel < handle
    properties(SetAccess = public)
-      stan_home = mstan.stan_home
+      stan_home
       working_dir
    end
    properties(SetAccess = private)
@@ -33,8 +28,9 @@ classdef StanModel < handle
       thin
       seed
 
-      %algorithm
+      algorithm
       init
+      %control
       
       inc_warmup
       sample_file
@@ -63,32 +59,87 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.1.0';
+      version = '0.2.0';
    end
 
    methods
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% Constructor      
       function self = StanModel(varargin)
-         [self.defaults,self.validators] = mstan.stan_params();
-         self.params = self.defaults;
-         self.working_dir = pwd;
 
          p = inputParser;
          p.KeepUnmatched= true;
          p.FunctionName = 'stan constructor';
-         p.addParamValue('stan_home',self.stan_home);
+         p.addParamValue('stan_home',mstan.stan_home);
          p.addParamValue('file','');
          p.addParamValue('model_name','anon_model');
          p.addParamValue('model_code',{});
          p.addParamValue('working_dir',pwd);
          p.addParamValue('method','sample',@(x) validatestring(x,{'sample' 'optimize' 'diagnose'}));
          p.addParamValue('chains',4);
-         p.addParamValue('inc_warmup',false);
          p.addParamValue('sample_file','',@ischar);
-         p.addParamValue('refresh',self.defaults.output.refresh,@isnumeric);
          p.addParamValue('verbose',false,@islogical);
          p.addParamValue('file_overwrite',false,@islogical);
+         p.parse(varargin{:});
+
+         self.verbose = p.Results.verbose;
+         self.file_overwrite = p.Results.file_overwrite;
+         self.stan_home = p.Results.stan_home;
+         
+         try
+            ver = self.stan_version();
+            [self.defaults,self.validators] = mstan.stan_params(ver);
+         catch err
+            [self.defaults,self.validators] = mstan.stan_params();
+         end
+         self.params = self.defaults;         
+         
+         self.file = p.Results.file;
+         if isempty(self.file)
+            self.model_name = p.Results.model_name;
+            self.model_code = p.Results.model_code;
+         end
+         self.working_dir = p.Results.working_dir;
+         
+         self.method = p.Results.method;
+         self.chains = p.Results.chains;
+         
+         if isempty(p.Results.sample_file)
+            self.sample_file = self.params.output.file;
+         else
+            self.sample_file = p.Results.sample_file;
+            self.params.output.file = self.sample_file;
+         end
+
+         % pass remaining inputs to set()
+         self.set(p.Unmatched);
+      end
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+      function set(self,varargin)
+         p = inputParser;
+         p.KeepUnmatched= false;
+         p.FunctionName = 'StanModel parameter setter';
+         p.addParamValue('stan_home',self.stan_home);
+         p.addParamValue('file',self.file);
+         p.addParamValue('model_name',self.model_name);
+         p.addParamValue('model_code',self.model_code);
+         p.addParamValue('working_dir',self.working_dir);
+         p.addParamValue('method',self.method);
+         p.addParamValue('sample_file',self.sample_file);
+         p.addParamValue('id',self.id);
+         p.addParamValue('iter',self.iter);
+         p.addParamValue('warmup',self.warmup);
+         p.addParamValue('thin',self.thin);
+         p.addParamValue('init',self.init);
+         p.addParamValue('seed',self.seed);
+         p.addParamValue('chains',self.chains);
+         p.addParamValue('inc_warmup',self.inc_warmup);
+         p.addParamValue('data',[]);
+         p.addParamValue('verbose',self.verbose);
+         p.addParamValue('file_overwrite',self.file_overwrite);
+         p.addParamValue('refresh',self.refresh);
+         p.addParamValue('checksum_binary',self.checksum_binary,@isstr);
          p.parse(varargin{:});
 
          self.verbose = p.Results.verbose;
@@ -97,27 +148,32 @@ classdef StanModel < handle
          self.file = p.Results.file;
          if isempty(self.file)
             self.model_name = p.Results.model_name;
+            self.model_code = p.Results.model_code;
          end
-         self.model_code = p.Results.model_code;
          self.working_dir = p.Results.working_dir;
          
          self.method = p.Results.method;
-         self.inc_warmup = p.Results.inc_warmup;
          self.chains = p.Results.chains;
          
-         self.refresh = p.Results.refresh;
          if isempty(p.Results.sample_file)
             self.sample_file = self.params.output.file;
          else
             self.sample_file = p.Results.sample_file;
             self.params.output.file = self.sample_file;
          end
-         
-         % pass remaining inputs to set()
-         self.set(p.Unmatched);
+         self.id = p.Results.id;
+         self.iter = p.Results.iter;
+         self.warmup = p.Results.warmup;
+         self.thin = p.Results.thin;
+         self.init = p.Results.init;
+         self.seed = p.Results.seed;
+         self.chains = p.Results.chains;
+         self.inc_warmup = p.Results.inc_warmup;
+         self.data = p.Results.data;
+         self.refresh = p.Results.refresh;
+         self.checksum_binary = p.Results.checksum_binary;
       end
-      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+      
       function set.stan_home(self,d)
          [~,fa] = fileattrib(d);
          if fa.directory
@@ -137,8 +193,8 @@ classdef StanModel < handle
          if ischar(fname)
             self.update_model('file',fname);
          else
-            error('stan:file:InputFormat','file must be a string');
-         end
+            %error('stan:file:InputFormat','file must be a string');
+         end  
       end
             
       function file = get.file(self)
@@ -175,13 +231,10 @@ classdef StanModel < handle
          end
       end
       
-%       function bool = isValid(self)
-%       end
       function bool = isCompiled(self)
-         %binary exists else false
-         %md5 matches cached md5 else false
          bool = false;
          if exist(self.model_binary_path,'file')
+            % MD5
             checksum = mstan.DataHash(self.model_binary_path);
             if strcmp(checksum,self.checksum_binary)
                bool = true;
@@ -199,7 +252,9 @@ classdef StanModel < handle
             model = regexp(model,'(\r\n|\n|\r)','split')';
          end
          % FIXME , should deblank lines first for leading whitespace
-         if any(strncmp('data',model,4)) || any(strncmp('parameters',model,10)) || any(strncmp('model',model,5))
+         if any(strncmp('data',model,4)) ...
+               || any(strncmp('parameters',model,10))...
+               || any(strncmp('model',model,5))
             self.update_model('model_code',model);
          else
             error('does not look like a stan model');
@@ -243,7 +298,8 @@ classdef StanModel < handle
                self.working_dir = tempdir;
             end
          else
-            error('working_dir must be a directory');
+            error('StanModel:working_dir:InputFormat',...
+               'working_dir must be a directory');
          end
       end
             
@@ -256,7 +312,12 @@ classdef StanModel < handle
       end
       
       function set.refresh(self,refresh)
+         validateattributes(refresh,self.validators.output.refresh{1},self.validators.output.refresh{2})
          self.params.output.refresh = refresh;
+      end
+      
+      function refresh = get.refresh(self)
+         refresh = self.params.output.refresh;
       end
       
       function set.id(self,id)
@@ -296,8 +357,7 @@ classdef StanModel < handle
       end
       
       function set.init(self,init)
-         % handle vector case, looks like it will require writing to dump
-         % file as well
+         % TODO: handle vector case, looks like it will require writing rdump file
          validateattributes(init,self.validators.init{1},self.validators.init{2})
          self.params.init = init;
       end
@@ -307,7 +367,6 @@ classdef StanModel < handle
       end
       
       function set.seed(self,seed)
-         % handle chains > 1
          validateattributes(seed,self.validators.random.seed{1},self.validators.random.seed{2})
          if seed < 0
             self.params.random.seed = round(sum(100*clock));
@@ -318,6 +377,34 @@ classdef StanModel < handle
       
       function seed = get.seed(self)
          seed = self.params.random.seed;
+      end
+      
+      function set.algorithm(self,algorithm)
+         algorithm = lower(algorithm);
+         if strcmp(self.method,'sample')
+            if any(strcmp(self.validators.sample.hmc.engine,algorithm))
+               self.params.sample.hmc.engine = algorithm;
+            else
+               error('StanModel:algorithm:InputFormat',...
+                  'Unknown algorithm for sampler');
+            end
+         elseif strcmp(self.method,'optimize')
+            if any(strcmp(self.validators.optimize.algorithm,algorithm))
+               self.params.optimize.algorithm = algorithm;
+            else
+               error('StanModel:algorithm:InputFormat',...
+                  'Unknown algorithm for optimizer');
+            end
+         end
+      end
+      
+      function algorithm = get.algorithm(self)
+         if strcmp(self.method,'sample')
+            algorithm = [self.params.sample.algorithm ':' ...
+               self.params.sample.hmc.engine];
+         elseif strcmp(self.method,'optimize')
+            algorithm = self.params.optimize.algorithm;
+         end
       end
       
       function set.diagnostic_file(self,name)
@@ -351,7 +438,7 @@ classdef StanModel < handle
       
       function set.data(self,d)
          if isstruct(d) || isa(d,'containers.Map')
-            % how to contruct filename?
+            % FIXME: how to contruct filename?
             fname = fullfile(self.working_dir,'temp.data.R');
             mstan.rdump(fname,d);
             self.data = d;
@@ -366,39 +453,9 @@ classdef StanModel < handle
                error('data file not found');
             end
          else
-            
+            %error('StanModel:data:InputFormat','not done');
          end
-      end
-      
-      function set(self,varargin)
-         p = inputParser;
-         p.KeepUnmatched= false;
-         p.FunctionName = 'stan parameter setter';
-         p.addParamValue('id',self.id);
-         p.addParamValue('iter',self.iter);
-         p.addParamValue('warmup',self.warmup);
-         p.addParamValue('thin',self.thin);
-         p.addParamValue('init',self.init);
-         p.addParamValue('seed',self.seed);
-         p.addParamValue('chains',self.chains);
-         p.addParamValue('inc_warmup',self.inc_warmup);
-         p.addParamValue('data',[]);
-         p.addParamValue('verbose',self.verbose);
-         p.addParamValue('checksum_binary',self.checksum_binary,@isstr);
-         p.parse(varargin{:});
-
-         self.id = p.Results.id;
-         self.iter = p.Results.iter;
-         self.warmup = p.Results.warmup;
-         self.thin = p.Results.thin;
-         self.init = p.Results.init;
-         self.seed = p.Results.seed;
-         self.chains = p.Results.chains;
-         self.inc_warmup = p.Results.inc_warmup;
-         self.data = p.Results.data;
-         self.verbose = p.Results.verbose;
-         self.checksum_binary = p.Results.checksum_binary;
-      end
+      end            
       
       function command = get.command(self)
          command = {[self.model_binary_path ' ']};
@@ -448,7 +505,10 @@ classdef StanModel < handle
          
          % FIXME: should be passing full filenames here or generating them
          % in StanFit (ie, include working_dir)
-         fit = StanFit('model',self,'processes',p,'seed',seed,'sample_file',sample_file);
+         fit = StanFit('model',self,'processes',p,...
+                       'seed',seed,...
+                       'output_file',sample_file,...
+                       'verbose',self.verbose);
          p.start();
       end
       
@@ -478,18 +538,33 @@ classdef StanModel < handle
                             'printStdout',self.verbose,...
                             'autoStart',false);
 
-         %lh = addlistener(p,'exit',@(src,evnt)optim_exit(self,src,evnt));
-         fit = StanFit('model',self,'processes',p,'sample_file',{self.sample_file});
+         fit = StanFit('model',self,'processes',p,...
+                       'output_file',{self.sample_file},...
+                       'verbose',self.verbose);
          p.start();
       end
       
       function diagnose(self)
+         error('not done');
+      end
+      
+      function ver = stan_version(self)
+         command = [fullfile(self.stan_home,'bin','stanc') ' --version'];
+         p = processManager('id','stanc version','command',command,...
+                            'keepStdout',true,...
+                            'printStdout',false);
+         p.block(0.1);
+         if p.exitValue == 0
+            str = regexp(p.stdout{1},'\ ','split');
+            ver = cellfun(@str2num,regexp(str{3},'\.','split'),'uni',0);
+         else
+            fprintf('%s\n',p.stdout{:});
+         end
       end
       
       function help(self,str)
          % TODO: 
          % if str is stanc or other basic binary
-         
          %else
          % need to check that model binary exists
          command = [self.model_binary_path ' ' str ' help'];
@@ -513,6 +588,7 @@ classdef StanModel < handle
             target = 'model';
          end
          if any(strcmp({'stanc' 'libstan.a' 'libstanc.a' 'print'},target))
+            % FIXME: does Stan on windows use / or \?
             command = ['make bin/' target];
             printStderr = false;
          elseif strcmp(target,'model')
@@ -609,6 +685,12 @@ classdef StanModel < handle
                fname = self.model_path;
                if exist(fname,'file') == 2
                   % Model file already exists
+                  % Only write if contents different, avoid trivial recompiles
+                  temp = mstan.read_lines(fname);
+                  if all(strcmp(sprintf('%s\n',temp{:}),sprintf('%s\n',arg{:})))
+                     self.update_model('file',fname);
+                     return;
+                  end
                   if self.file_overwrite
                      mstan.write_lines(fname,arg);
                      self.update_model('file',fname);
@@ -628,10 +710,5 @@ classdef StanModel < handle
                error('');
          end
       end
-      
-%       function optim_exit(self,src,evtdata)
-% 
-%       end
    end
-
 end

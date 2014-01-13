@@ -2,6 +2,8 @@
 % o permutation index, hmm looks like the behavior should be across stanFit
 % instances, need to save Matlab rng state
 % o clean up and generalize for both sampling and optim
+% o stop() verbose() merge() methods
+% o auto merge when handles equal
 % o should be able to construct stanfit object from just csv files
 classdef StanFit < handle
    properties
@@ -13,15 +15,17 @@ classdef StanFit < handle
       sim
       
       seed
-      sample_file
-      sample_file_hdr
+      output_file
+      output_file_hdr
       %diagnostic_file
       
-      exitValue
+      verbose
+      
+      exit_value
       permute_index
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.1.0';
+      version = '0.2.0';
    end
    
    methods
@@ -34,50 +38,73 @@ classdef StanFit < handle
          p.addParamValue('model','',@(x) isa(x,'StanModel'));
          p.addParamValue('processes','',@(x) isa(x,'processManager'));
          p.addParamValue('seed',[],@isnumeric);
-         p.addParamValue('sample_file',{},@(x) iscell(x));
+         p.addParamValue('output_file',{},@(x) iscell(x));
+         p.addParamValue('verbose',false);
          p.parse(varargin{:});
 
          if ~isempty(p.Results.model)
             self.model = p.Results.model;
          end
          
+         % Listen for exit from processManager
          if ~isempty(p.Results.processes)
-            % Listen for exit from processManager
-            lh = addlistener(p.Results.processes,'exit',...
-               @(src,evnt)process_exit(self,src,evnt));
+            addlistener(p.Results.processes,'exit',@(src,evnt)process_exit(self,src,evnt));
             self.processes = p.Results.processes;
          end
+         self.verbose = p.Results.verbose;
          self.seed = p.Results.seed;
          
-         if ~isempty(p.Results.sample_file)
-            self.sample_file = p.Results.sample_file;
-            self.exitValue = nan(size(self.sample_file));
+         if ~isempty(p.Results.output_file)
+            self.output_file = p.Results.output_file;
+            self.exit_value = nan(size(self.output_file));
          end
 
-         if numel(self.processes) ~= numel(self.sample_file)
+         if numel(self.processes) ~= numel(self.output_file)
             error('must match');
          else
-            self.sample_file_hdr = cell(1,numel(self.sample_file));
+            self.output_file_hdr = cell(1,numel(self.output_file));
          end
       end
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+      function set.verbose(self,bool)
+         if isscalar(bool) && islogical(bool)
+            if ~isempty(self.processes)
+               [self.processes.printStdout] = deal(bool);
+               self.verbose = bool;
+            end
+         else
+            error('bool');
+         end
+      end
       
       function sim = get.sim(self)
-         if ~all(self.exitValue==0)
+         if ~all(self.exit_value==0)
             %disp('not done')
             self.processes.block(0.05);
          end
          sim = self.sim;
       end
       
+      function stop(self)
+         if ~isempty(self.processes)
+            % FIXME: need to update exit_values, and trigger read of what
+            % managed to get written to file. 
+            % FIXME: not working due to notification problem in
+            % processManager
+            self.processes.stop();
+         else
+            %error('');
+         end
+      end
+      
       function out = extract(self,varargin)
-         if ~all(self.exitValue==0)
+         if ~all(self.exit_value==0)
             %disp('not done')
             self.processes.block(0.05);
          end
          
          p = inputParser;
-         p.KeepUnmatched= false;
          p.FunctionName = 'StanFit extract';
          p.addParamValue('pars',{},@(x) iscell(x) || ischar(x));
          p.addParamValue('permuted',true,@islogical);
@@ -104,7 +131,8 @@ classdef StanFit < handle
          end
          
          if p.Results.inc_warmup && ~self.model.params.sample.save_warmup
-            warning('Warmup samples requested, but were not saved when model run');
+            warning('StanFit:extract:IgnoredInput',...
+               'Warmup samples requested, but were not saved when model run');
          end
          
          fn = fieldnames(self.sim);
@@ -113,7 +141,9 @@ classdef StanFit < handle
             for i = 1:numel(pars)
                temp = cat(1,self.sim.(pars{i}));
                sz = size(temp);
+               try
                temp = temp(self.permute_index,:);
+               catch; keyboard; end
                out.(pars{i}) = reshape(temp,sz);
             end
             % TODO: check that this is expected behavior!!
@@ -127,23 +157,20 @@ classdef StanFit < handle
          end
       end
       
-      
-      function process_exit(self,src,evtdata)
-         % need to id the chain that finished, load that data? or wait
-         % until everyone is done???
-         ind = strcmp(self.sample_file,src.id);
-         self.exitValue(ind) = src.exitValue;
+      function process_exit(self,src,~)
+         ind = strcmp(self.output_file,src.id);
+         self.exit_value(ind) = src.exitValue;
          
-         if isempty(self.sample_file_hdr{ind})
-            %fprintf('Processing %s\n',src.id);
+         %fprintf('Notification! Processing %s\n',src.id);
+         if isempty(self.output_file_hdr{ind})
             if strcmp(self.model.method,'optimize')
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
-                  self.sample_file{ind},true);
+                  self.output_file{ind},true);
             else
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
-                  self.sample_file{ind},self.model.inc_warmup);
+                  self.output_file{ind},self.model.inc_warmup);
             end
-            [names,dims,samples] = self.parse_flat_samples(flatNames,flatSamples);
+            [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
             
             temp(ind) = cell2struct(samples,names,2);
             if isempty(self.sim) % first assignment
@@ -151,7 +178,7 @@ classdef StanFit < handle
             else
                self.sim(ind) = temp(ind);
             end
-            self.sample_file_hdr{ind} = hdr;
+            self.output_file_hdr{ind} = hdr;
             if isempty(self.pars)
                self.pars = names;
             end
@@ -168,19 +195,22 @@ classdef StanFit < handle
          % for each instance of stanfit. Do we need to worry about space?
          % Perhaps set store a rng state based on seed passed to sampler?
          % https://github.com/stan-dev/pystan/pull/26
-         if all(self.exitValue == 0)
+         if all(self.exit_value == 0)
             nSamples = self.model.chains*self.model.iter;
             self.permute_index = randperm(nSamples);
          end
       end
       
-      function self = print(self,file)
-         % TODO: this should allow multiple files and regexp. 
+      function str = print(self,file)
+         % TODO: 
+         % o this should allow multiple files and regexp.
+         % o this does not work when method=optim, should shortcut
+         %       
          % note that passing regexp through in the command does not work,
          % need to implment search in matlab
-         % TODO: return output as string
+         % TODO: allow print parameters
          if nargin < 2
-            file = self.sample_file;
+            file = self.output_file;
          end
          if ischar(file)
             command = [self.model.stan_home filesep 'bin/print ' file];
@@ -190,8 +220,17 @@ classdef StanFit < handle
          p = processManager('command',command,...
                             'workingDir',self.model.working_dir,...
                             'wrap',100,...
-                            'keepStdout',false);
+                            'keepStdout',true,...
+                            'keepStderr',true);
          p.block(0.05);
+         if p.exitValue == 0
+            str = p.stdout;
+         else
+            str = p.stderr;
+         end
+      end
+      
+      function summary(self)
       end
       
       function traceplot(self,varargin)
@@ -200,71 +239,13 @@ classdef StanFit < handle
          
          out = extract(self,'permuted',false,'inc_warmup',true);
          maxRows = 8;
-         
-         fn = fieldnames(out);
-         nPars = numel(fn);
-         if nPars < maxRows;
-            maxRows = nPars;
-         end
-         figure;
-         count = 1;
-         for i = 1:nPars
-            % FIXME: will not work for n-D parameters! Recursion?
-            for j = 1:size(out(1).(fn{i}),2)
-               subplot(maxRows,1,count); hold on
-               % Grab all chains for given parameter index
-               temp = arrayfun(@(x) x.(fn{i})(:,j),out,'uni',false);
-               plot(cell2mat(temp));
-               %for k = 1:nChains
-               %   plot(out(k).(fn{i})(:,j));
-               %end
-               if isvector(out(1).(fn{i}))
-                  title(fn{i})
-               elseif ismatrix(out(1).(fn{i}))
-                  title([fn{i} num2str(j)])
-               end
-               count = count + 1;
-               if count > maxRows
-                  figure;
-                  count = 1;
-               end
-            end
-         end
+         mstan.traceplot(out,maxRows);
       end
-   end
-   
-   methods(Static)
-      function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSamples)
-         % Could probably be replaced with a few regexp expressions...
-         %
-         % As of Stan 2.0.1, variables may not contain periods.
-         % Periods are used to separate dimensions of vector and array variables
-         splitNames = regexp(flatNames, '\.', 'split');
-         for j = 1:numel(splitNames)
-            names{j} = splitNames{j}{1};
-         end
-         varNames = unique(names,'stable');
-         for j = 1:numel(varNames)
-            ind = strcmp(names,varNames{j});
-            
-            % Parse dimensionality of parameter
-            temp = cat(1,splitNames{ind});
-            temp(:,1) = [];
-            if size(temp,2) == 0
-               varDims{j} = [1 1];
-            elseif size(temp,2) == 1
-               varDims{j} = [max(str2num(cat(1,temp{:,1}))) 1];
-            else
-               for k = 1:size(temp,2)
-                  varDims{j}(k) = max(str2num(cat(1,temp{:,k})));
-               end
-            end
-            
-            % Convert flat samples to correct shape
-            temp = flatSamples(:,ind);
-            varSamples{j} = reshape(temp,[length(temp) varDims{j}]);
-         end
-      end
+      
+      function bool = is_running(self)
+         bool = any(isnan(self.exit_value));
+         % TODO: should actually check processes
+      end      
    end
 end
 
