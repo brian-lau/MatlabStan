@@ -5,6 +5,7 @@
 % update for Stan 2.1.0
 % dump reader (to load data as struct)
 % model definitions
+% compile flags
 % Windows
 % package organization, should classes be in package?
 % x way to determined compiled status? checksum??? force first time compile?
@@ -59,14 +60,13 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.2.0';
+      version = '0.3.0';
    end
 
    methods
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% Constructor      
       function self = StanModel(varargin)
-
          p = inputParser;
          p.KeepUnmatched= true;
          p.FunctionName = 'stan constructor';
@@ -89,7 +89,7 @@ classdef StanModel < handle
          try
             ver = self.stan_version();
             [self.defaults,self.validators] = mstan.stan_params(ver);
-         catch err
+         catch
             [self.defaults,self.validators] = mstan.stan_params();
          end
          self.params = self.defaults;         
@@ -224,7 +224,7 @@ classdef StanModel < handle
       end
       
       function binary_path = model_binary_path(self)
-         if ispc
+         if ispc % FIXME is this necessary in Stan 2.1?
             binary_path = fullfile(self.model_home,[self.model_name '.exe']);
          else
             binary_path = fullfile(self.model_home,self.model_name);
@@ -450,7 +450,7 @@ classdef StanModel < handle
                self.data = 'from file';
                self.params.data.file = d;
             else
-               error('data file not found');
+               error('StanModel:data:FileNotFound','data file not found');
             end
          else
             %error('StanModel:data:InputFormat','not done');
@@ -480,7 +480,7 @@ classdef StanModel < handle
          if self.verbose
             fprintf('Stan is sampling with %g chains...\n',self.chains);
          end
-         chain_id = 1:self.chains;
+         chain_id = 1:self.chains; % TODO chain_id parameter?
          [~,name,ext] = fileparts(self.sample_file);
          base_name = self.sample_file;
          base_seed = self.seed;
@@ -600,11 +600,18 @@ classdef StanModel < handle
          p = processManager('id','compile',...
                             'command',command,...
                             'workingDir',self.stan_home,...
+                            'keepStdout',true,...
+                            'keepStderr',true,...
                             'printStderr',printStderr,...
                             'printStdout',self.verbose);
          p.block(0.05);
-         if strcmp(target,'model')
-            self.checksum_binary = mstan.DataHash(self.model_binary_path);
+         if p.exitValue == 0
+            if strcmp(target,'model')
+               self.checksum_binary = mstan.DataHash(self.model_binary_path);
+            end
+         else
+            fprintf('Compile failed with exit value: %g\n',p.exitValue);
+            error('StanModel:compile:failure','%s\n',p.stderr{:});
          end
       end
       

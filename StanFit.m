@@ -5,6 +5,8 @@
 % o stop() verbose() merge() methods
 % o auto merge when handles equal
 % o should be able to construct stanfit object from just csv files
+% o extract should allow excluding chains
+% o should be way to delete chains
 classdef StanFit < handle
    properties
       model
@@ -14,7 +16,7 @@ classdef StanFit < handle
       dims
       sim
       
-      seed
+      seed % This is for the Stan RNG
       output_file
       output_file_hdr
       %diagnostic_file
@@ -24,8 +26,11 @@ classdef StanFit < handle
       exit_value
       permute_index
    end
+   properties(SetAccess = private)
+      rng_state = rng; % This is for the Matlab RNG
+   end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.2.0';
+      version = '0.3.0';
    end
    
    methods
@@ -84,6 +89,17 @@ classdef StanFit < handle
             self.processes.block(0.05);
          end
          sim = self.sim;
+      end
+      
+      function ind = get.permute_index(self)
+         if all(self.exit_value == 0)
+            %nSamples = self.model.chains*self.model.iter;
+            curr = rng;
+            rng(self.rng_state); % state at object construction
+            nSamples = sum([self.sim.iter]);
+            ind = randperm(nSamples);
+            rng(curr);
+         end
       end
       
       function stop(self)
@@ -166,13 +182,27 @@ classdef StanFit < handle
             if strcmp(self.model.method,'optimize')
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
                   self.output_file{ind},true);
-            else
+            elseif strcmp(self.model.method,'sample')
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
             
-            temp(ind) = cell2struct(samples,names,2);
+            iter = unique(cellfun(@(x) size(x,1),samples));
+            if numel(iter) ~= 1
+               warning('different number of samples');
+            end
+            if self.model.inc_warmup
+               if iter ~= (self.model.iter + self.model.warmup)
+                  warning('wrong number of samples include warmup');
+               end
+            else
+               if iter ~= self.model.iter
+                  warning('wrong number of samples');
+               end
+            end
+            
+            temp(ind) = cell2struct([samples iter],[names 'iter'],2);
             if isempty(self.sim) % first assignment
                self.sim = temp;
             else
@@ -195,13 +225,13 @@ classdef StanFit < handle
          % for each instance of stanfit. Do we need to worry about space?
          % Perhaps set store a rng state based on seed passed to sampler?
          % https://github.com/stan-dev/pystan/pull/26
-         if all(self.exit_value == 0)
-            nSamples = self.model.chains*self.model.iter;
-            self.permute_index = randperm(nSamples);
-         end
+%          if all(self.exit_value == 0)
+%             nSamples = self.model.chains*self.model.iter;
+%             self.permute_index = randperm(nSamples);
+%          end
       end
       
-      function str = print(self,file)
+      function str = print(self,varargin)
          % TODO: 
          % o this should allow multiple files and regexp.
          % o this does not work when method=optim, should shortcut
@@ -209,13 +239,28 @@ classdef StanFit < handle
          % note that passing regexp through in the command does not work,
          % need to implment search in matlab
          % TODO: allow print parameters
-         if nargin < 2
-            file = self.output_file;
+         p = inputParser;
+         p.FunctionName = 'StanFit print';
+         p.addParamValue('file',{},@(x) iscell(x) || ischar(x));
+         p.addParamValue('sig_figs',2,@isscalar);
+         p.parse(varargin{:});
+
+         if isempty(p.Results.file)
+            if ~isempty(self.output_file)
+               file = self.output_file;
+            end
+         elseif ischar(p.Results.file)
+            file = {p.Results.file};
+         else
+            file = p.Results.file;
          end
+         
          if ischar(file)
-            command = [self.model.stan_home filesep 'bin/print ' file];
+            command = [self.model.stan_home filesep 'bin/print --sig_figs='...
+               num2str(p.Results.sig_figs) ' ' file];
          elseif iscell(file)
-            command = [self.model.stan_home filesep 'bin/print ' sprintf('%s ',file{:})];
+            command = [self.model.stan_home filesep 'bin/print --sig_figs='...
+               num2str(p.Results.sig_figs) ' ' sprintf('%s ',file{:})];
          end
          p = processManager('command',command,...
                             'workingDir',self.model.working_dir,...

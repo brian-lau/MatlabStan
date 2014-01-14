@@ -40,7 +40,7 @@ classdef TestBernoulli < TestCase
          % FIXME: pause to allow process to finish. Even with block(),
          % there are cases where samples are read before file has completed
          % writing???
-         pause(0.5);
+ %        pause(0.5);
          
          self.model = model;
          self.fit = fit;
@@ -93,7 +93,7 @@ classdef TestBernoulli < TestCase
          
          % permuted=false
          % CHECK:
-         extr = fit.extract('permuted',true);
+         extr = fit.extract('permuted',false);
          
          % permuted=true
          extr = fit.extract('pars','lp__','permuted',true);
@@ -105,12 +105,11 @@ classdef TestBernoulli < TestCase
       
       function test_bernoulli_random_seed_consistency(self)
          for i = 1:2
-            fit = self.model.sampling('data',self.data,'seed',42);
-            theta{i} = fit.extract('pars','theta','permuted',true).theta;
+            fit(i) = self.model.sampling('data',self.data,'seed',42,...
+               'sample_file',['output_' num2str(i)]);
+            theta{i} = fit(i).extract('pars','theta','permuted',true).theta;
          end
-         % FIXME: This will fail. Currently permutations are specific to
-         % each instance of StanFit, not across instances
-         %assertEqual(theta{1},theta{2});
+         assertEqual(theta{1},theta{2});
       end
       
       function teardown(self)
