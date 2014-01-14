@@ -23,7 +23,7 @@ function fid = rdump(fname,content)
          fprintf(fid,'%d), .Dim = c(',data{i}(end));
          fprintf(fid,'%g,',size(data{i},1));
          fprintf(fid,'%g',size(data{i},2));
-         fprintf(fid,'))\n')
+         fprintf(fid,'))\n');
       end
    end
    fclose(fid);
