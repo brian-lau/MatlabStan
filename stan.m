@@ -23,11 +23,11 @@
 %              Name of the model. default = 'anon_model' 
 %              However, if 'file' is passed in, then the filename is used 
 %              to name the model.
-%     fit    - StanFit object, optional
+%     fit    - StanModel or StanFit object, optional
 %              StanFit instance from previous fit, default = []
-%              If present, the Stan model associated with the StanFit
-%              instance is used to specify the model, which will avoid
-%              recompilation.
+%              If present, the Stan model instantiated in StanModel or 
+%              associated with a StanFit instance is used to specify the 
+%              model, which can avoid recompilation.
 %     data   - struct
 %              Data for Stan model. Fieldnames and associated values must 
 %              correspond to Stan variable names values.
@@ -86,18 +86,20 @@ function fit = stan(varargin)
 p = inputParser;
 p.KeepUnmatched= true;
 p.FunctionName = 'stan';
-p.addParamValue('fit',[],@(x) isa(x,'StanFit'));
+p.addParamValue('fit',[],@(x) isa(x,'StanFit') || isa(x,'StanModel'));
 p.addParamValue('method','sample');
-p.addParamValue('iter',2000,@(x) isscalar(x) && (x>0))
-p.addParamValue('warmup',[],@(x) isscalar(x) && (x>0))
-p.addParamValue('refresh',[],@(x) isscalar(x) && (x>0))
-p.addParamValue('algorithm','')
+p.addParamValue('iter',2000,@(x) isscalar(x) && (x>0));
+p.addParamValue('warmup',[],@(x) isscalar(x) && (x>0));
+p.addParamValue('refresh',[],@(x) isscalar(x) && (x>0));
+p.addParamValue('algorithm','');
 p.parse(varargin{:});
 
 if isempty(p.Results.fit)
    model = StanModel();
+elseif isa(p.Results.fit,'StanFit')
+   model = copy(p.Results.fit.model);
 else
-   model = p.Results.fit.model;
+   model = copy(p.Results.fit);
 end
 
 model.method = p.Results.method;

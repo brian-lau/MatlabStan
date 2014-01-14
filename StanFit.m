@@ -7,6 +7,7 @@
 % o should be able to construct stanfit object from just csv files
 % o extract should allow excluding chains
 % o should be way to delete chains
+% o clean() should delete sample files and intermediate?
 classdef StanFit < handle
    properties
       model
@@ -30,7 +31,7 @@ classdef StanFit < handle
       rng_state = rng; % This is for the Matlab RNG
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.3.0';
+      version = '0.4.0';
    end
    
    methods
@@ -92,6 +93,7 @@ classdef StanFit < handle
       end
       
       function ind = get.permute_index(self)
+         % https://github.com/stan-dev/pystan/pull/26
          if all(self.exit_value == 0)
             %nSamples = self.model.chains*self.model.iter;
             curr = rng;
@@ -174,10 +176,12 @@ classdef StanFit < handle
       end
       
       function process_exit(self,src,~)
-         ind = strcmp(self.output_file,src.id);
+         %ind = strcmp(self.output_file,src.id);
+         ind = strcmp(self.output_file,fullfile(src.workingDir,src.id));
          self.exit_value(ind) = src.exitValue;
          
          %fprintf('Notification! Processing %s\n',src.id);
+         %keyboard
          if isempty(self.output_file_hdr{ind})
             if strcmp(self.model.method,'optimize')
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
@@ -188,17 +192,21 @@ classdef StanFit < handle
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
             
-            iter = unique(cellfun(@(x) size(x,1),samples));
-            if numel(iter) ~= 1
-               warning('different number of samples');
-            end
-            if self.model.inc_warmup
-               if iter ~= (self.model.iter + self.model.warmup)
-                  warning('wrong number of samples include warmup');
-               end
+            if strcmp(self.model.method,'optimize')
+               iter = 1;
             else
-               if iter ~= self.model.iter
-                  warning('wrong number of samples');
+               iter = unique(cellfun(@(x) size(x,1),samples));
+               if numel(iter) ~= 1
+                  warning('different number of samples');
+               end
+               if self.model.inc_warmup
+                  if iter ~= (self.model.iter + self.model.warmup)
+                     warning('wrong number of samples include warmup');
+                  end
+               else
+                  if iter ~= self.model.iter
+                     warning('wrong number of samples');
+                  end
                end
             end
             
@@ -219,16 +227,7 @@ classdef StanFit < handle
             % FIXME: notifications are repeated? related to processManager?
             %fprintf('%s callback triggered\n',src.id)
          end
-         %self.flat_pars = flatNames;
-         
-         % Cache a permutation index to allow reproducible call to extract 
-         % for each instance of stanfit. Do we need to worry about space?
-         % Perhaps set store a rng state based on seed passed to sampler?
-         % https://github.com/stan-dev/pystan/pull/26
-%          if all(self.exit_value == 0)
-%             nSamples = self.model.chains*self.model.iter;
-%             self.permute_index = randperm(nSamples);
-%          end
+         %self.flat_pars = flatNames;         
       end
       
       function str = print(self,varargin)
@@ -239,6 +238,11 @@ classdef StanFit < handle
          % note that passing regexp through in the command does not work,
          % need to implment search in matlab
          % TODO: allow print parameters
+        if strcmp(self.model.method,'optimize')
+           fprintf('%s\n',self.processes.stdout{:});
+           return;
+        end
+         
          p = inputParser;
          p.FunctionName = 'StanFit print';
          p.addParamValue('file',{},@(x) iscell(x) || ischar(x));

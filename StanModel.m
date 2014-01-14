@@ -60,7 +60,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.3.0';
+      version = '0.4.0';
    end
 
    methods
@@ -121,7 +121,7 @@ classdef StanModel < handle
          p.KeepUnmatched= false;
          p.FunctionName = 'StanModel parameter setter';
          p.addParamValue('stan_home',self.stan_home);
-         p.addParamValue('file',self.file);
+         p.addParamValue('file',fullfile(self.model_home,self.file));
          p.addParamValue('model_name',self.model_name);
          p.addParamValue('model_code',self.model_code);
          p.addParamValue('working_dir',self.working_dir);
@@ -493,9 +493,9 @@ classdef StanModel < handle
             seed(i) = self.seed;
             p(i) = processManager('id',sample_file{i},...
                                'command',sprintf('%s',self.command{:}),...
-                               'workingDir',self.model_home,...
+                               'workingDir',self.working_dir,...
                                'wrap',100,...
-                               'keepStdout',false,...
+                               'keepStdout',true,...
                                'pollInterval',1,...
                                'printStdout',self.verbose,...
                                'autoStart',false);
@@ -505,9 +505,9 @@ classdef StanModel < handle
          
          % FIXME: should be passing full filenames here or generating them
          % in StanFit (ie, include working_dir)
-         fit = StanFit('model',self,'processes',p,...
+         fit = StanFit('model',copy(self),'processes',p,...
                        'seed',seed,...
-                       'output_file',sample_file,...
+                       'output_file',cellfun(@(x) fullfile(self.working_dir,x),sample_file,'uni',0),...
                        'verbose',self.verbose);
          p.start();
       end
@@ -529,17 +529,18 @@ classdef StanModel < handle
          if self.verbose
             fprintf('Stan is optimizing ...\n');
          end
+         
          p = processManager('id',self.sample_file,...
                             'command',sprintf('%s',self.command{:}),...
-                            'workingDir',self.model_home,...
+                            'workingDir',self.working_dir,...
                             'wrap',100,...
-                            'keepStdout',false,...
+                            'keepStdout',true,...
                             'pollInterval',1,...
                             'printStdout',self.verbose,...
                             'autoStart',false);
 
-         fit = StanFit('model',self,'processes',p,...
-                       'output_file',{self.sample_file},...
+         fit = StanFit('model',copy(self),'processes',p,...
+                       'output_file',{fullfile(self.working_dir,self.sample_file)},...
                        'verbose',self.verbose);
          p.start();
       end
@@ -618,6 +619,25 @@ classdef StanModel < handle
 %       function disp(self)
 % 
 %       end
+
+      function new = copy(self)
+         % Shallow copy handle object
+         %http://www.mathworks.com/matlabcentral/newsreader/view_thread/257925
+         meta = metaclass(self);
+         props = cellfun(@(x) x.Name,meta.Properties,'uni',0);
+         
+         new = eval(class(self));
+         warning off MATLAB:structOnObject
+         S = struct(self);
+         warning on MATLAB:structOnObject
+         for i=1:length(props)
+            % Do not copy Transient or Dependent Properties
+            if meta.Properties{i}.Transient || meta.Properties{i}.Dependent
+               continue;
+            end
+            new.(props{i}) = S.(props{i});
+         end
+      end
    end
    
    methods(Access = private)
@@ -677,6 +697,7 @@ classdef StanModel < handle
                if ~((exist(arg,'file')==2) || strncmp(path,'http',4))
                   error('file does not exist');
                end
+
                self.file_ = [name ext];
                self.model_name_ = name;
                self.model_home = path;
@@ -689,6 +710,7 @@ classdef StanModel < handle
                if isempty(self.model_home)
                   self.model_home = self.working_dir;
                end
+               
                fname = self.model_path;
                if exist(fname,'file') == 2
                   % Model file already exists
@@ -706,6 +728,7 @@ classdef StanModel < handle
                      [~,name] = fileparts(filename);
                      self.model_name_ = name;
                      self.model_home = filepath;
+
                      mstan.write_lines(self.model_path,arg);
                      self.update_model('file',self.model_path);
                   end
