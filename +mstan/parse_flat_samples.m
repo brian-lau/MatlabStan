@@ -34,6 +34,10 @@ function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSample
 
       % Convert flat samples to correct shape
       temp = flatSamples(:,ind);
-      varSamples{j} = reshape(temp,[length(temp) varDims{j}]);
+      if size(temp,1) == 1 % optimizing = 1 sample
+         varSamples{j} = reshape(temp,varDims{j});
+      else
+         varSamples{j} = reshape(temp,[length(temp) varDims{j}]);
+      end
    end
 end
