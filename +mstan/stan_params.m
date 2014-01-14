@@ -7,7 +7,10 @@
 % 3) cell array of strings representing valid arguments
 
 function [params,valid] = stan_params(ver)
-if nargin
+   if nargin == 0
+      ver = {2 0 1}; % default {major minor patch}
+   end
+
    if (ver{1}>=2) && (ver{2}>=1) % Stan 2.1+
       adapt_params = struct(...
          'engaged',true,...
@@ -61,7 +64,7 @@ if nargin
          'append_diagnostic',{{{'logical'} {'scalar'}}},...
          'refresh',{{{'numeric'} {'scalar','>',0}}});
    end
-end
+
    params.sample = struct(...
                          'num_samples',1000,...
                          'num_warmup',1000,...
