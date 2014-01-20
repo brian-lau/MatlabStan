@@ -15,6 +15,7 @@ model_code = {
 };
 
 fit = stan('model_code',model_code,'data',struct('K',4));
+fit.block()
 
 % extract, permuted = true
 beta = fit.extract().beta;

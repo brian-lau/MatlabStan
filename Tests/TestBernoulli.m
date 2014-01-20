@@ -17,6 +17,8 @@ classdef TestBernoulli < TestCase
       end
       
       function setUp(self)
+         delete('output*');
+         
          bernoulli_model_code = {
          'data {'
          '    int<lower=0> N;'
@@ -37,11 +39,9 @@ classdef TestBernoulli < TestCase
             'model_name','bernoulli','file_overwrite',true);
          fit = model.sampling('data',bernoulli_data);
 
-         % FIXME: pause to allow process to finish. Even with block(),
-         % there are cases where samples are read before file has completed
-         % writing???
- %        pause(0.5);
-         
+         % Block until files are finished loading from
+         fit.block();
+
          self.model = model;
          self.fit = fit;
          self.code = bernoulli_model_code;
@@ -63,6 +63,7 @@ classdef TestBernoulli < TestCase
       
       function test_bernoulli_sampling(self)
          fit = self.fit;
+         %keyboard
          % iter in Pystan is the sum of sampling iters and warmup
          assertEqual(fit.model.iter+fit.model.warmup,2000);
          assertTrue(all(ismember({'lp__','theta'},fieldnames(fit.sim))));
@@ -107,6 +108,7 @@ classdef TestBernoulli < TestCase
          for i = 1:2
             fit(i) = self.model.sampling('data',self.data,'seed',42,...
                'sample_file',['output_' num2str(i)]);
+            fit(i).block();
             theta{i} = fit(i).extract('pars','theta','permuted',true).theta;
          end
          assertEqual(theta{1},theta{2});

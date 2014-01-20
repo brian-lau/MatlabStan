@@ -13,7 +13,11 @@ classdef TestRstanGettingStarted < TestCase
    methods
       function self = TestRstanGettingStarted(name)
          self = self@TestCase(name);
-
+      end
+      
+      function setUp(self)
+         delete('output*');
+         
          schools_code = {
             'data {'
             '    int<lower=0> J; // number of schools '
@@ -42,6 +46,7 @@ classdef TestRstanGettingStarted < TestCase
          
          fit = stan('model_code',schools_code,'data',schools_dat,'iter',1000,'chains',4,...
             'file_overwrite',true);
+         fit.block();
          
          % Avoid repeated recompiling when debugging
          %model = stan('model_code',schools_code,'data',schools_dat,'file_overwrite',true);
@@ -53,9 +58,6 @@ classdef TestRstanGettingStarted < TestCase
          self.dat = schools_dat;
       end
       
-      function setUp(self)
-      end
-      
       function test_stan(self)
          self.validate_data(self.fit);
       end
@@ -65,6 +67,7 @@ classdef TestRstanGettingStarted < TestCase
          fit1 = self.fit;
          fit = stan('fit',fit1,'data',self.dat,'iter',1000,'chains',4,...
              'file_overwrite',true);
+         fit.block();
          self.validate_data(fit);
       end
       
@@ -79,6 +82,7 @@ classdef TestRstanGettingStarted < TestCase
          
          fit = stan('file',tempfile,'data',self.dat,'iter',1000,'chains',4,...
             'file_overwrite',true);
+         fit.block();
          self.validate_data(fit);         
          
          [path,name,ext] = fileparts(tempfile);

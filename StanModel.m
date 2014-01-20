@@ -1,15 +1,110 @@
+% STANMODEL - Class defining a Stan model
 %
+%     obj = StanModel(varargin);
+%
+%     All inputs are passed in using name/value pairs. The name is a string
+%     followed by the value (described below).
+%     The order of the pairs does not matter, nor does the case.
+%
+%     The Stan model can be passed in three ways:
+%     1) as a file (use the 'file' input)
+%     2) as a Matlab string (use the 'model_code' input)
+%     3) as a Matlab StanModel object (use the 'fit' input)
+%
+% ATTRIBUTES
+%     file   - string, optional
+%              The string passed is the filename containing the Stan model.
+%     method - string, optional
+%              {'sample' 'optimize'}, default = 'sample'
+%     model_code - string, optional
+%              String, or cell array of strings containing Stan model.
+%              Ignored if 'file' is passed in.
+%     model_name - string, optional
+%              Name of the model. default = 'anon_model' 
+%              However, if 'file' is passed in, then the filename is used 
+%              to name the model.
+%     data   - struct
+%              Data for Stan model. Fieldnames and associated values must 
+%              correspond to Stan variable names values.
+%     chains - scalar, optional, valid when method = 'sample'
+%              Number of chains for . Default = 4
+%     iter   - scalar, optional, valid when method = 'sample'
+%              Number of iterations for each chain. Default = 1000
+%     warmup - scalar, optional, valid when method = 'sample'
+%              Number of warmup (aka burnin) iterations. Default = 1000
+%     thin   - scalar, optional, valid when method = 'sample'
+%              Period for saving samples. Default = 1
+%     init   - scalar, struct or string, optional
+%              0 initializes all to be zero on the unconstrained support
+%              x scalar [-x,+x] uniform initial values
+%              User-supplied initial values can either be supplied as a
+%              string pointing to a Rdump file, or as a struct, with fields
+%              corresponding to parameters to be initialized.
+%     seed   - scalar, optional
+%              Random number generator seed. Default = round(sum(100*clock))
+%              Note that this seed is different from Matlab's RNG seed, and
+%              is only used to sample from Stan models. For multiple chains
+%              each chain is seeded according to a deterministic function
+%              of the provided seed to avoid dependency.
+%              Default initializes parameters uniformly from (-2,+2)
+%     algorithm - string, optional
+%              If method = 'sample', {'NUTS','HMC'}, default = 'NUTS'
+%              If method = 'optimize', {'BFGS','NESTEROV' 'NEWTON'}, default = 'BFGS'
+%     sample_file - string, optional
+%              Name of file(s) where samples for all parameters are saved.
+%              Default = 'output.csv'.
+%     diagnostic_file % not done
+%     verbose - bool, optional
+%              Specifies whether output is piped to console. Default = false
+%     refresh - scalar, optional
+%              Number of iterations between reports of sampling progress.
+%              Default = 100.
+%     stan_home - string, optional
+%              Parent directory of CmdStan installation.
+%              Default = directory specified in +mstan/stan_home.m
+%     working_dir - string, optional
+%              Directory for reading/writing models/data.
+%              Default = pwd
+%     file_overwrite - bool, optional
+%              Controls whether .stan files are automatically overwritten
+%              when the model changes. Default = false
+%              If false, a file dialog is opened when the model is changed
+%              allowing the user to specify a different filename, or
+%              manually overwrite the current.
+%
+% METHODS
+%     set    - Set multiple properties (as name/value pairs)
+%     compile - string
+%              One of 'stanc' 'libstan.a' 'libstanc.a' 'print', which
+%              compiles the corresponding elements of CmdStan.
+%              Or 'model', which compiles the defined model. Default = 'model'
+%     optimizing
+%     sampling
+%     help
+%     stan_version - returns a vector [MAJOR MINOR PATCH] w/ Stan version
+%     command - displays the Stan commandline parameters for current model
+%     model_binary_path - returns the path to C++ binary for current model
+%     copy - returns a shallow copy of the current model
+%
+% EXAMPLES
+% 
+%     $ Copyright (C) 2014 Brian Lau http://www.subcortex.net/ $
+%     Released under the BSD license. The license and most recent version
+%     of the code can be found on GitHub:
+%     https://github.com/brian-lau/MatlabStan
+
 % TODO
+% unique filenames for outputs?
 % expose remaining pystan parameters
-% inits
-% update for Stan 2.1.0
 % dump reader (to load data as struct)
 % model definitions
 % compile flags
 % Windows
-% package organization, should classes be in package?
+% x inits
+% x package organization
+% x update for Stan 2.1.0
 % x way to determined compiled status? checksum??? force first time compile?
-%
+
 classdef StanModel < handle
    properties(SetAccess = public)
       stan_home
@@ -30,7 +125,6 @@ classdef StanModel < handle
       seed
 
       algorithm
-      init
       %control
       
       inc_warmup
@@ -40,7 +134,8 @@ classdef StanModel < handle
    end
    properties(SetAccess = public)
       method
-      data 
+      init
+      data
       chains
 
       verbose
@@ -60,7 +155,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.4.0';
+      version = '0.5.0';
    end
 
    methods
@@ -86,18 +181,23 @@ classdef StanModel < handle
          self.file_overwrite = p.Results.file_overwrite;
          self.stan_home = p.Results.stan_home;
          
-         try
-            ver = self.stan_version();
-            [self.defaults,self.validators] = mstan.stan_params(ver);
-         catch
-            [self.defaults,self.validators] = mstan.stan_params();
+         while 1 % FIXME, occasionally stanc does not return version?
+            try
+               ver = self.stan_version();
+               [self.defaults,self.validators] = mstan.stan_params(ver);
+               break;
+            catch err
+               disp('Having a problem getting stan version.');
+               disp('Trying again.');
+            end
          end
          self.params = self.defaults;         
          
-         self.file = p.Results.file;
-         if isempty(self.file)
+         if isempty(p.Results.file)
             self.model_name = p.Results.model_name;
             self.model_code = p.Results.model_code;
+         else
+            self.file = p.Results.file;
          end
          self.working_dir = p.Results.working_dir;
          
@@ -145,10 +245,11 @@ classdef StanModel < handle
          self.verbose = p.Results.verbose;
          self.file_overwrite = p.Results.file_overwrite;
          self.stan_home = p.Results.stan_home;
-         self.file = p.Results.file;
-         if isempty(self.file)
+         if isempty(p.Results.file)
             self.model_name = p.Results.model_name;
             self.model_code = p.Results.model_code;
+         else
+            self.file = p.Results.file;
          end
          self.working_dir = p.Results.working_dir;
          
@@ -190,7 +291,16 @@ classdef StanModel < handle
       end
       
       function set.file(self,fname)
-         if ischar(fname)
+         if isempty(fname)
+            uigetfile;
+         elseif ischar(fname)
+            [path,name,ext] = fileparts(fname);
+            if isempty(path)
+               fname = fullfile(pwd,fname);
+            end
+            if ~exist(fname)
+               error('StanModel:file:NoFile','File does not exist');
+            end
             self.update_model('file',fname);
          else
             %error('stan:file:InputFormat','file must be a string');
@@ -328,7 +438,7 @@ classdef StanModel < handle
       function id = get.id(self)
          id = self.params.id;
       end
-      
+            
       function set.iter(self,iter)
          validateattributes(iter,self.validators.sample.num_samples{1},self.validators.sample.num_samples{2})
          self.params.sample.num_samples = iter;
@@ -357,13 +467,31 @@ classdef StanModel < handle
       end
       
       function set.init(self,init)
-         % TODO: handle vector case, looks like it will require writing rdump file
-         validateattributes(init,self.validators.init{1},self.validators.init{2})
-         self.params.init = init;
-      end
-      
-      function init = get.init(self)
-         init = self.params.init;
+         if isstruct(init) || isa(init,'containers.Map')
+            % FIXME: how to contruct filename? also for data
+            fname = fullfile(self.working_dir,'temp.init.R');
+            mstan.rdump(fname,init);
+            self.init = init;
+            self.params.init = fname;
+         elseif ischar(init)
+            if exist(init,'file') %% FIXME: exist checks in entire Matlabpath
+               % TODO: read data into struct... what a mess...
+               % self.data = dump2struct()
+               self.init = 'from file';
+               self.params.init = init;
+            else
+               error('StanModel:init:FileNotFound','init file not found');
+            end
+         else
+            if isempty(init)
+               self.init = self.defaults.init;
+               self.params.init = self.defaults.init;
+            else
+               validateattributes(init,self.validators.init{1},self.validators.init{2})
+               self.init = init;
+               self.params.init = init;
+            end
+         end
       end
       
       function set.seed(self,seed)
@@ -382,6 +510,9 @@ classdef StanModel < handle
       function set.algorithm(self,algorithm)
          algorithm = lower(algorithm);
          if strcmp(self.method,'sample')
+            if strcmp(algorithm,'hmc')
+               algorithm = 'static';
+            end
             if any(strcmp(self.validators.sample.hmc.engine,algorithm))
                self.params.sample.hmc.engine = algorithm;
             else
@@ -483,14 +614,14 @@ classdef StanModel < handle
          chain_id = 1:self.chains; % TODO chain_id parameter?
          [~,name,ext] = fileparts(self.sample_file);
          base_name = self.sample_file;
-         base_seed = self.seed;
+         base_id = self.id;
          for i = 1:self.chains
             sample_file{i} = [name '-' num2str(chain_id(i)) ext];
             self.sample_file = sample_file{i};
-            % Advance seed according to some rule
-            % FIXME: what is the rule used by Pystan/Rstan?
-            self.seed = base_seed + chain_id(i);
-            seed(i) = self.seed;
+            % Stan automatically uses the id to advance its RNG. Note that
+            % Stan id defaults to 0, although you cannot actually pass this
+            % in as a valid value.
+            self.id = base_id + chain_id(i) - 1;
             p(i) = processManager('id',sample_file{i},...
                                'command',sprintf('%s',self.command{:}),...
                                'workingDir',self.working_dir,...
@@ -501,12 +632,11 @@ classdef StanModel < handle
                                'autoStart',false);
          end
          self.sample_file = base_name;
-         self.seed = base_seed;
+         self.id = base_id;
          
          % FIXME: should be passing full filenames here or generating them
          % in StanFit (ie, include working_dir)
          fit = StanFit('model',copy(self),'processes',p,...
-                       'seed',seed,...
                        'output_file',cellfun(@(x) fullfile(self.working_dir,x),sample_file,'uni',0),...
                        'verbose',self.verbose);
          p.start();
@@ -553,8 +683,9 @@ classdef StanModel < handle
          command = [fullfile(self.stan_home,'bin','stanc') ' --version'];
          p = processManager('id','stanc version','command',command,...
                             'keepStdout',true,...
-                            'printStdout',false);
-         p.block(0.1);
+                            'printStdout',false,...
+                            'pollInterval',0.005);
+         p.block(0.05);
          if p.exitValue == 0
             str = regexp(p.stdout{1},'\ ','split');
             ver = cellfun(@str2num,regexp(str{3},'\.','split'),'uni',0);
@@ -690,18 +821,21 @@ classdef StanModel < handle
                end
             case {'file'}
                [path,name,ext] = fileparts(arg);
+               if isempty(path)
+                  path = pwd;
+               end
                if ~strcmp(ext,'.stan')
                   error('include extension');
                end
-               %if ~((exist([name ext],'file')==2) || strncmp(path,'http',4))
-               if ~((exist(arg,'file')==2) || strncmp(path,'http',4))
-                  error('file does not exist');
-               end
-
                self.file_ = [name ext];
                self.model_name_ = name;
                self.model_home = path;
                self.checksum_stan = mstan.DataHash(self.model_path);
+               if exist(self.model_binary_path,'file')
+                  self.checksum_binary = mstan.DataHash(self.model_binary_path);
+               else
+                  self.checksum_binary = [];
+               end
             case {'model_code'}
                % model name exists (default anon)
                % model home exists

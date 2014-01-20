@@ -16,7 +16,8 @@ ex_model_code = {
 '}'
 };
 
-fit = stan('model_code',ex_model_code);
+fit = stan('model_code',ex_model_code,'file_overwrite',true);
+fit.block();
 
 ss = fit.extract('permuted',true);
 alpha = ss.alpha;

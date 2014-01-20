@@ -39,13 +39,19 @@
 %              Number of warmup (aka burnin) iterations.
 %     thin   - scalar, optional, valid when method = 'sample'
 %              Period for saving samples.
-%     init   % not done yet
+%     init   - scalar, struct or string, optional
+%              0 initializes all to be zero on the unconstrained support
+%              x scalar [-x,+x] uniform initial values
+%              User-supplied initial values can either be supplied as a
+%              string pointing to a Rdump file, or as a struct, with fields
+%              corresponding to parameters to be initialized.
 %     seed   - scalar, optional
 %              Random number generator seed. Default = round(sum(100*clock))
 %              Note that this seed is different from Matlab's RNG seed, and
 %              is only used to sample from Stan models. For multiple chains
 %              each chain is seeded according to a deterministic function
 %              of the provided seed to avoid dependency.
+%              Default initializes parameters uniformly from (-2,+2)
 %     algorithm - string, optional
 %              If method = 'sample', {'NUTS','HMC'}, default = 'NUTS'
 %              If method = 'optimize', {'BFGS','NESTEROV' 'NEWTON'}, default = 'BFGS'
@@ -70,6 +76,9 @@
 %              If false, a file dialog is opened when the model is changed
 %              allowing the user to specify a different filename, or
 %              manually overwrite the current.
+%
+% OUTPUTS
+%     fit - StanFit instance
 %     
 % EXAMPLES
 % 
@@ -96,7 +105,7 @@ p.parse(varargin{:});
 
 if isempty(p.Results.fit)
    model = StanModel();
-elseif isa(p.Results.fit,'StanFit')
+elseif isa(p.Results.fit,'StanFit') %FIXME, stan seed is also copied...
    model = copy(p.Results.fit.model);
 else
    model = copy(p.Results.fit);

@@ -10,7 +10,11 @@ classdef TestNormal < TestCase
    
    methods
       function self = TestNormal(name)
-         self = self@TestCase(name);
+         self = self@TestCase(name);         
+      end
+      
+      function setUp(self)
+         delete('output*');
          
          model_code = {'parameters {real y;} model {y ~ normal(0,1);}'};
 
@@ -20,15 +24,13 @@ classdef TestNormal < TestCase
          self.model = model;
       end
       
-      function setUp(self)
-      end
-      
       function test_constructor(self)
          assertEqual(self.model.model_name,'normal1');
       end
       
       function test_log_prob(self)
          fit = self.model.sampling();
+         fit.block();
          extr = fit.extract();
          [y_last,log_prob_last] = deal(extr.y(end),extr.lp__(end));
          

@@ -18,6 +18,7 @@ model_code = {
 % fit = model.sampling('data',struct('K',3,'D',4));
 
 fit = stan('model_code',model_code,'file_overwrite',true,'data',struct('K',3,'D',4));
+fit.block();
 
 beta = fit.extract().beta;
 assertEqual(size(beta),[4000 3 4]);

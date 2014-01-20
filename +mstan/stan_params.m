@@ -128,7 +128,7 @@ function [params,valid] = stan_params(ver)
    params.data = struct('file','');
    valid.data = struct('file',@isstr);
    params.init = 2;
-   valid.init = {{'numeric' 'char'} {'nonempty'}}; % shitty validator
+   valid.init = {{'numeric'} {'scalar'}}; % shitty validator
    params.random = struct('seed',-1);
    valid.random = struct('seed',{{{'numeric'} {'scalar'}}});
 
