@@ -9,9 +9,10 @@ The interface is very prelimenary, and subject to changes as I get through testi
 Developed on Matlab 2012a and OSX. Should work on Linux and Windows, although someone needs to test it...
 
 ## Installation
-1. Install CmdStan 2.1.0 or greater
-2. Install MatlabProcessManager 0.3.0+ or greater
-3. Install MatlabStan
+Install
+1. CmdStan 2.0.1 or greater
+2. MatlabProcessManager 0.4.0 or greater
+3. MatlabStan
 
 Details are provided in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
 
