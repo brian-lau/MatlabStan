@@ -10,6 +10,7 @@ Developed on Matlab 2012a and OSX. Should work on Linux and Windows, although so
 
 ## Installation
 Install
+
 1. CmdStan 2.0.1 or greater
 2. MatlabProcessManager 0.4.0 or greater
 3. MatlabStan
