@@ -15,36 +15,29 @@
 % Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
 classdef StanFit < handle
    properties
-      model
-      processes % not sure I need this, although for long runs, can stop here...
+      model     % StanModel object
+      processes % processManager objects
 
-      pars
-      dims
-      warmup
-      iter
-      sim
-      
       output_file
-      output_file_hdr
-      %diagnostic_file
-      
       verbose
-      
       exit_value
       loaded
-      permute_index
+   end
+   properties(Dependent = true)
+      pars
+      sim
    end
    properties(SetAccess = private, Hidden = true)
       sim_
       warmup_
       iter_
-      rng_state = rng; % This is for the Matlab RNG
+%      rng_state = rng % This is for the Matlab RNG
    end
    events
       exit
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.5.0';
+      version = '0.6.0';
    end
    
    methods
@@ -71,7 +64,8 @@ classdef StanFit < handle
                   'Upgrade to the latest at: https://github.com/brian-lau/MatlabProcessManager']);
             else
                for i = 1:numel(p.Results.processes)
-                  addlistener(p.Results.processes(i).state,'exit',@(src,evnt)process_exit(self,src,evnt));
+                  addlistener(p.Results.processes(i).state,'exit',...
+                     @(src,evnt)process_exit(self,src,evnt));
                end
             end
             self.processes = p.Results.processes;
@@ -87,9 +81,9 @@ classdef StanFit < handle
          if numel(self.processes) ~= numel(self.output_file)
             error('StanFit:constructor:InputFormat',...
                'The number of processes should match the number of expected data files.');
-         else
-            self.output_file_hdr = cell(1,numel(self.output_file));
          end
+         
+         self.sim_ = mcmc;
       end
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -101,24 +95,6 @@ classdef StanFit < handle
             end
          else
             error('StanFit:verbose:InputFormat','Boolean scalar expected.');
-         end
-      end
-      
-      function ind = get.permute_index(self)
-         % https://github.com/stan-dev/pystan/pull/26
-         % TODO : cache this
-         if exit_with_data(self)
-            curr = rng;
-            rng(self.rng_state); % state at object construction
-            
-            for i = 1:numel(self.pars)
-               n_total_iter(i) = sum(arrayfun(@(x) x.(self.pars{i}),self.iter));
-            end
-            ind = randperm(max(n_total_iter));
-
-            rng(curr);
-         else
-            ind = [];
          end
       end
       
@@ -140,22 +116,6 @@ classdef StanFit < handle
          end
       end
       
-      function warmup = get.warmup(self)
-         if exit_with_data(self)
-            warmup = self.warmup_;
-         else
-            warmup = [];
-         end
-      end
-      
-      function iter = get.iter(self)
-         if exit_with_data(self)
-            iter = self.iter_;
-         else
-            iter = [];
-         end
-      end
-      
       function out = extract(self,varargin)         
          if ~exit_with_data(self)
             out = [];
@@ -169,49 +129,9 @@ classdef StanFit < handle
          p.addParamValue('inc_warmup',false,@islogical);
          p.parse(varargin{:});
          
-         req_pars = p.Results.pars;
-         if ischar(req_pars)
-            req_pars = {req_pars};
-         end
-         if isempty(req_pars)
-            pars = self.pars;
-         else
-            ind = ismember(req_pars,self.pars);
-            if ~any(ind)
-               error('bad pars');
-            else
-               pars = req_pars(ind);
-               if any(~ind)
-                  temp = req_pars(~ind);
-                  warning('%s requested but not found, dropping',temp{:});
-               end
-            end
-         end
-         
-         if p.Results.inc_warmup && ~self.model.params.sample.save_warmup
-            warning('StanFit:extract:IgnoredInput',...
-               'Warmup samples requested, but were not saved when model run');
-         end
-
-         fn = fieldnames(self.sim);
-         if p.Results.permuted && ~self.model.inc_warmup
-            % TODO: ability to return permuted samples when we have warmup?
-            out = struct;
-            for i = 1:numel(pars)
-               temp = cat(1,self.sim.(pars{i}));
-               sz = size(temp);
-               temp = temp(self.permute_index(1:max(sz)),:);
-               out.(pars{i}) = reshape(temp,sz);
-            end
-            % TODO: check that this is expected behavior!!
-            % x = reshape(1:6,2,1,3);
-            % y = x([2,1],:); % force to 2-D
-            % reshape(y,size(x)) % back to original size
-         else
-            % TODO?
-            % return an array of three dimensions: iterations, chains, parameters
-            out = rmfield(self.sim,setxor(fn,pars));
-         end
+         out = self.sim_.extract('names',p.Results.pars,...
+                                 'permuted',p.Results.permuted,...
+                                 'inc_warmup',p.Results.inc_warmup);
       end
       
       function process_exit(self,src,~)
@@ -231,7 +151,7 @@ classdef StanFit < handle
             fprintf('stan started processing %s\n',src.id);
          end
          
-         if isempty(self.output_file_hdr{ind})
+         if any(ind)%isempty(self.output_file_hdr{ind})
             if strcmp(self.model.method,'optimize')
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
                   self.output_file{ind},true);
@@ -240,37 +160,16 @@ classdef StanFit < handle
                   self.output_file{ind},self.model.inc_warmup);
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
-            
-            if strcmp(self.model.method,'optimize')
-               warmup  = 0;
-               iter = 1;
-            else
-               [warmup,iter] = self.check_samples(samples,names);
-            end
-            
-            temp1(ind) = cell2struct(samples,names,2);
-            temp2(ind) = cell2struct(num2cell(warmup),names,2);
-            temp3(ind) = cell2struct(num2cell(iter),names,2);
 
-            if isempty(self.sim_) 
-               % First assignment, entire structure including empty fields
-               % in the struct array are passed. Ensures that the indexing
-               % is correct regardless of the order of chain notification.
-               self.sim_ = temp1;
-               self.warmup_ = temp2;
-               self.iter_ = temp3;
+            % append to mcmc object, accounting for thinning
+            if self.model.inc_warmup
+               exp_warmup = ceil(self.model.warmup/self.model.thin);
             else
-               self.sim_(ind) = temp1(ind);
-               self.warmup_(ind) = temp2(ind);
-               self.iter_(ind) = temp3(ind);
+               exp_warmup = 0;
             end
-            self.output_file_hdr{ind} = hdr;
-            if isempty(self.pars)
-               self.pars = names;
-            end
-            if isempty(self.dims)
-               self.dims = dims;
-            end
+            exp_iter = ceil(self.model.iter/self.model.thin);
+            self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
+            self.sim_.user_data{ind} = hdr;
          end
 
          %self.flat_pars = flatNames;
@@ -280,6 +179,7 @@ classdef StanFit < handle
          self.loaded(ind) = true;
          if nansum(self.loaded) == numel(self.loaded)
             if any(arrayfun(@(x) isempty(x.lp__),self.iter_))
+               % FIXME: not a good check, eventually we may not keep lp__
                warning('Failure to load chains correctly');
             end
             notify(self,'exit');
@@ -425,12 +325,7 @@ classdef StanFit < handle
       end
       
       function traceplot(self,varargin)
-         % check if I passed in an extracted struct already
-         %out = extract(self,varargin{:});
-         
-         out = extract(self,'permuted',false,'inc_warmup',true);
-         maxRows = 8;
-         mstan.traceplot(out,maxRows);
+         self.sim.traceplot(varargin{:});
       end
    end
 end

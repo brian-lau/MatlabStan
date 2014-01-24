@@ -45,5 +45,5 @@ fit4 = sm.sampling('data',data);
 print(fit4);
 
 data = struct('N',10,'y',[0, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
-fit = stan('file','junk.stan','data',data,'iter',20000);
-addlistener(fit,'exit',@exitHandler);
+fit = stan('file','bernoulli.stan','data',data,'iter',20000);
+%addlistener(fit,'exit',@exitHandler);

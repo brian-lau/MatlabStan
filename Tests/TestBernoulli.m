@@ -63,16 +63,15 @@ classdef TestBernoulli < TestCase
       
       function test_bernoulli_sampling(self)
          fit = self.fit;
-         %keyboard
          % iter in Pystan is the sum of sampling iters and warmup
          assertEqual(fit.model.iter+fit.model.warmup,2000);
-         assertTrue(all(ismember({'lp__','theta'},fieldnames(fit.sim))));
-         assertEqual(numel(fit.sim),4);
+         assertTrue(all(ismember({'lp__','theta'},fieldnames(fit.sim.samples))));
+         assertEqual(numel(fit.sim.samples),4);
          for i = 1:4
-            assertEqual(size(fit.sim(i).theta,1),1000);
-            m = mean(fit.sim(i).theta);
+            assertEqual(size(fit.sim.samples(i).theta,1),1000);
+            m = mean(fit.sim.samples(i).theta);
             assertTrue((0.1<m) && (m<0.4));
-            v = var(fit.sim(i).theta);
+            v = var(fit.sim.samples(i).theta);
             assertTrue((0.01<v) && (v<0.02));
          end
       end

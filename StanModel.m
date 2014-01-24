@@ -104,6 +104,7 @@
 % x package organization
 % x update for Stan 2.1.0
 % x way to determined compiled status? checksum??? force first time compile?
+% o fullfile warnings on 2012b
 
 classdef StanModel < handle
    properties(SetAccess = public)
@@ -111,10 +112,10 @@ classdef StanModel < handle
       working_dir
    end
    properties(SetAccess = private)
-      model_home % url or path to .stan file
+      model_home = ''% url or path to .stan file
    end
    properties(SetAccess = public, Dependent = true)
-      file
+      file = ''
       model_name
       model_code
       
