@@ -1,7 +1,7 @@
 % xUnit framework required
 % http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework
 
-% ref 
+% REF:
 % https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_basic.py
 classdef TestBernoulli < TestCase
    properties
@@ -17,8 +17,6 @@ classdef TestBernoulli < TestCase
       end
       
       function setUp(self)
-         delete('output*');
-         
          bernoulli_model_code = {
          'data {'
          '    int<lower=0> N;'
@@ -113,10 +111,10 @@ classdef TestBernoulli < TestCase
          assertEqual(theta{1},theta{2});
       end
       
-      function teardown(self)
-         delete(self.model);
-         delete(self.fit);
-         delete(self.code);
+      function tearDown(self)
+         delete('bernoulli*');
+         delete('output*');
+         delete('temp.data.R');
       end
    end
    

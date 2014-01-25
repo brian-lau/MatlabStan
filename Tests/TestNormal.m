@@ -1,7 +1,7 @@
 % xUnit framework required
 % http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework
 
-% ref 
+% REF: 
 % https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_rstan_getting_started.py
 classdef TestNormal < TestCase
    properties
@@ -14,12 +14,10 @@ classdef TestNormal < TestCase
       end
       
       function setUp(self)
-         delete('output*');
-         
          model_code = {'parameters {real y;} model {y ~ normal(0,1);}'};
 
          model = StanModel('model_code',model_code,'model_name','normal1',...
-            'verbose',true,'file_overwrite',true);
+            'file_overwrite',true);
          
          self.model = model;
       end
@@ -40,8 +38,9 @@ classdef TestNormal < TestCase
          %assertEqual(fit.log_prob(y_last), log_prob_last);
       end
             
-      function teardown(self)
-         delete(self.model);
+      function tearDown(self)
+         delete('normal1*');
+         delete('output*');
       end
    end
 end

@@ -1,7 +1,7 @@
 % xUnit framework required
 % http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework
 
-% ref 
+% REF: 
 % https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_rstan_getting_started.py
 classdef TestRstanGettingStarted < TestCase
    properties
@@ -16,8 +16,6 @@ classdef TestRstanGettingStarted < TestCase
       end
       
       function setUp(self)
-         delete('output*');
-         
          schools_code = {
             'data {'
             '    int<lower=0> J; // number of schools '
@@ -44,14 +42,9 @@ classdef TestRstanGettingStarted < TestCase
                               'y',[28 8 -3 7 -1 1 18 12],...
                               'sigma',[15 10 16 11 9 11 10 18]);
          
-         fit = stan('model_code',schools_code,'data',schools_dat,'iter',1000,'chains',4,...
-            'file_overwrite',true);
+         fit = stan('model_code',schools_code,'data',schools_dat,...
+            'iter',1000,'chains',4,'file_overwrite',true);
          fit.block();
-         
-         % Avoid repeated recompiling when debugging
-         %model = stan('model_code',schools_code,'data',schools_dat,'file_overwrite',true);
-         %model.checksum_binary = '5bb91abcf46d1d741fea31dd52ab8398';
-         %fit = model.sampling();
          
          self.fit = fit;
          self.code = schools_code;
@@ -63,7 +56,6 @@ classdef TestRstanGettingStarted < TestCase
       end
       
       function test_stan_reuse_fit(self)
-         %disp('test_stan_reuse_fit');
          fit1 = self.fit;
          fit = stan('fit',fit1,'data',self.dat,'iter',1000,'chains',4,...
              'file_overwrite',true);
@@ -89,10 +81,10 @@ classdef TestRstanGettingStarted < TestCase
          delete([fullfile(path,name) '*']);
       end
       
-      function teardown(self)
-         delete(self.fit);
-         delete(self.code);
-         delete(self.dat);
+      function tearDown(self)
+         delete('anon_model*');
+         delete('output*');
+         delete('temp.data.R');
       end
    end
    
