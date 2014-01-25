@@ -3,7 +3,10 @@ function lines = read_lines(filename)
       if strncmp(filename,'http',4)
          str = urlread(filename);
       else
-         % FIXME, this format required full filename! Need to check input
+         path = fileparts(filename);
+         if isempty(path)
+            filename = fullfile(pwd,filename);
+         end
          str = urlread(['file:///' filename]);
       end
       lines = regexp(str,'(\r\n|\n|\r)','split')';
