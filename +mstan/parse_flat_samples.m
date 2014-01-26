@@ -10,7 +10,9 @@ function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSample
    for j = 1:numel(splitNames)
       names{j} = splitNames{j}{1};
    end
-   varNames = unique(names,'stable');
+   %varNames = unique(names,'stable'); % 2012a required
+   [~,I] = unique(names,'first');
+   varNames = names(sort(I));
    for j = 1:numel(varNames)
       ind = strcmp(names,varNames{j});
 
@@ -22,12 +24,10 @@ function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSample
          varDims{j} = [1 1];
       elseif size(temp,2) == 1
          % vector
-         %varDims{j} = [max(str2num(cat(1,temp{:,1}))) 1];
          varDims{j} = [max(str2num(sprintf('%s ',temp{:}))') 1];
       else
          % matrix
          for k = 1:size(temp,2)
-            %varDims{j}(k) = max(str2num(cat(1,temp{:,k})));
             varDims{j}(k) = max(str2num(sprintf('%s ',temp{:,k}))');
          end
       end
