@@ -1,6 +1,4 @@
 % TODO: 
-% x permutation index, hmm looks like the behavior should be across stanFit
-% instances, need to save Matlab rng state
 % x clean up and generalize for both sampling and optim
 % x stop() 
 % x verbose() 
@@ -8,9 +6,6 @@
 % o merge()
 % o auto merge when handles equal?
 % o should be able to construct stanfit object from just csv files
-% o extract should allow excluding chains
-% o should be way to delete chains
-% o clean() should delete sample files and intermediate?
 
 % Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
 classdef StanFit < handle
@@ -31,7 +26,6 @@ classdef StanFit < handle
       sim_
       warmup_
       iter_
-%      rng_state = rng % This is for the Matlab RNG
    end
    events
       exit
@@ -151,7 +145,7 @@ classdef StanFit < handle
             fprintf('stan started processing %s\n',src.id);
          end
          
-         if any(ind)%isempty(self.output_file_hdr{ind})
+         if any(ind)
             if strcmp(self.model.method,'optimize')
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
                   self.output_file{ind},true);
@@ -160,14 +154,21 @@ classdef StanFit < handle
                   self.output_file{ind},self.model.inc_warmup);
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
-
-            % append to mcmc object, accounting for thinning
-            if self.model.inc_warmup
-               exp_warmup = ceil(self.model.warmup/self.model.thin);
-            else
+            
+            if strcmp(self.model.method,'optimize')
                exp_warmup = 0;
+               exp_iter = 1;
+            else
+               % Account for thinning
+               if self.model.inc_warmup
+                  exp_warmup = ceil(self.model.warmup/self.model.thin);
+               else
+                  exp_warmup = 0;
+               end
+               exp_iter = ceil(self.model.iter/self.model.thin);
             end
-            exp_iter = ceil(self.model.iter/self.model.thin);
+            
+            % Append to mcmc object
             self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
             self.sim_.user_data{ind} = hdr;
          end
@@ -189,46 +190,7 @@ classdef StanFit < handle
       function process_exit_failure(self,src)
          warning('Stan seems to have exited badly.');
       end
-      
-      function [warmup,iter] = check_samples(self,samples,names)
-         if self.model.inc_warmup
-            exp_warmup = ceil(self.model.warmup/self.model.thin);
-         else
-            exp_warmup = 0;
-         end
-         exp_iter = ceil(self.model.iter/self.model.thin);
-         exp_sum_iter = exp_warmup + exp_iter;
-         obs_sum_iter = cellfun(@(x) size(x,1),samples);
-         mismatch = obs_sum_iter ~= exp_sum_iter;
-         n_pars = numel(obs_sum_iter);
-         if any(mismatch)
-            for i = 1:n_pars
-               if self.model.inc_warmup
-                  if obs_sum_iter(i) <= exp_warmup
-                     warmup(i) = obs_sum_iter(i);
-                     iter(i) = 0;
-                  else
-                     warmup(i) = exp_warmup;
-                     iter(i) = obs_sum_iter(i) - exp_warmup;
-                  end
-               else
-                  warmup(i) = 0;
-                  iter(i) = obs_sum_iter(i);
-               end
-               if mismatch(i)
-                  if self.verbose
-                     fprintf('Expected %g total iterations, read %g iterations for %s\n',...
-                        exp_sum_iter,obs_sum_iter(i),names{i});
-                     %fprintf('warmup: %g, iter: %g\n',warmup(i),iter(i));
-                  end
-               end
-            end
-         else
-            warmup = repmat(exp_warmup,1,n_pars);
-            iter = repmat(exp_iter,1,n_pars);
-         end
-      end
-      
+            
       function str = print(self,varargin)
          % TODO: 
          % o this should allow multiple files and regexp.

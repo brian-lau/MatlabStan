@@ -39,6 +39,7 @@ classdef TestOptim < TestCase
       function test_method_call(self)
          sm = self.model;
          optim = sm.optimizing('data',self.data);
+         optim.block();
          
          assertTrue((-1<optim.sim.samples.mu) && (optim.sim.samples.mu) < 1);
          assertTrue((0<optim.sim.samples.sigma) && (optim.sim.samples.mu) < 2);
@@ -48,6 +49,7 @@ classdef TestOptim < TestCase
          sm = self.model;
          mstan.rdump('optim.data.R',self.data);
          optim = sm.optimizing('data','optim.data.R');
+         optim.block();
 
          assertTrue((-1<optim.sim.samples.mu) && (optim.sim.samples.mu) < 1);
          assertTrue((0<optim.sim.samples.sigma) && (optim.sim.samples.mu) < 2);
@@ -55,7 +57,8 @@ classdef TestOptim < TestCase
       
       function test_stan(self)
          optim = stan('model_code',self.code,'method','optimize',...
-            'data',self.data);
+            'data',self.data,'file_overwrite',true);
+         optim.block();
 
          assertTrue((-1<optim.sim.samples.mu) && (optim.sim.samples.mu) < 1);
          assertTrue((0<optim.sim.samples.sigma) && (optim.sim.samples.mu) < 2);

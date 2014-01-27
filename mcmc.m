@@ -1,3 +1,12 @@
+% Container for MCMC samples
+
+% TODO
+% x permutation index, hmm looks like the behavior should be across stanFit
+% instances, need to save Matlab rng state
+% o extract should allow excluding chains
+% o should be way to delete chains
+% o clean() should delete sample files and intermediate?
+
 classdef mcmc < handle
    properties(Dependent = true)
       names
@@ -6,9 +15,11 @@ classdef mcmc < handle
       permute_index
    end
    properties
+      user_data
+   end
+   properties(SetAccess = private)
       warmup
       samples
-      user_data
       % FIXME, this assigment is always the same
       rng_state = rng % This is for the Matlab RNG
    end
@@ -56,12 +67,10 @@ classdef mcmc < handle
          if ~isempty(self.samples)
             curr = rng;
             rng(self.rng_state); % state at object construction
-            
             for i = 1:numel(self.names)
-               n_total_iter(i) = sum([self.n_samples.(self.names{i})]);%sum(arrayfun(@(x) x.(self.pars{i}),self.iter));
+               n_total_iter(i) = sum([self.n_samples.(self.names{i})]);
             end
             ind = randperm(max(n_total_iter));
-
             rng(curr);
          else
             ind = [];
@@ -71,14 +80,10 @@ classdef mcmc < handle
       function append(self,C,names,exp_warmup,exp_iter,chain_ind)
          [warmup,samples] = self.parse_combined_warmup_samples(...
             C,names,exp_warmup,exp_iter);
-%          [warmup,samples,n_warmup,n_iter] = self.parse_combined_warmup_samples(...
-%             C,names,exp_warmup,exp_iter);
          
          temp(chain_ind) = cell2struct(warmup,names,2);
          self.append_helper('warmup',temp,chain_ind);
-
          clear temp;
-         
          temp(chain_ind) = cell2struct(samples,names,2);
          self.append_helper('samples',temp,chain_ind);
       end
@@ -169,7 +174,7 @@ classdef mcmc < handle
          maxRows = 8;
          inc_warmup = true;
          
-         fn = self.names;%fieldnames(out);
+         fn = self.names;
          nPars = numel(fn);
          if nPars < maxRows;
             maxRows = nPars;

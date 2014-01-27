@@ -100,21 +100,21 @@
 % model definitions
 % compile flags
 % Windows
-% x inits
-% x package organization
-% x update for Stan 2.1.0
-% x way to determined compiled status? checksum??? force first time compile?
-% o fullfile warnings on 2012b
+% x inits, still need test
+% x fullfile warnings on 2012b
+% o hash to unique names for data/inits
+% o hash for binary doesn't make sense as dependent
+% o unique names for inits & data
 
 classdef StanModel < handle
-   properties(SetAccess = public)
+   properties
       stan_home
       working_dir
    end
    properties(SetAccess = private)
       model_home = ''% url or path to .stan file
    end
-   properties(SetAccess = public, Dependent = true)
+   properties(Dependent = true)
       file = ''
       model_name
       model_code
@@ -126,14 +126,14 @@ classdef StanModel < handle
       seed
 
       algorithm
-      %control
+      control
       
       inc_warmup
       sample_file
       diagnostic_file
       refresh
    end
-   properties(SetAccess = public)
+   properties
       method
       init
       data
@@ -141,10 +141,10 @@ classdef StanModel < handle
 
       verbose
       file_overwrite
+   end 
+   properties(SetAccess = private, Dependent = true)
       checksum_stan
       checksum_binary
-   end 
-   properties(SetAccess = private)
       command
    end
    properties(SetAccess = private, Hidden = true)
@@ -156,7 +156,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.5.0';
+      version = '0.6.0';
    end
 
    methods
@@ -171,7 +171,8 @@ classdef StanModel < handle
          p.addParamValue('model_name','anon_model');
          p.addParamValue('model_code',{});
          p.addParamValue('working_dir',pwd);
-         p.addParamValue('method','sample',@(x) validatestring(x,{'sample' 'optimize' 'diagnose'}));
+         p.addParamValue('method','sample',@(x) any(strcmp(x,...
+            {'sample' 'optimize' 'diagnose'})));
          p.addParamValue('chains',4);
          p.addParamValue('sample_file','',@ischar);
          p.addParamValue('verbose',false,@islogical);
@@ -183,6 +184,8 @@ classdef StanModel < handle
          self.stan_home = p.Results.stan_home;
          
          while 1 % FIXME, occasionally stanc does not return version?
+            % This is likely a problem with Java running out of file
+            % descriptors.
             try
                ver = self.stan_version();
                [self.defaults,self.validators] = mstan.stan_params(ver);
@@ -195,6 +198,7 @@ classdef StanModel < handle
          self.params = self.defaults;         
          
          if isempty(p.Results.file)
+            self.file = '';
             self.model_name = p.Results.model_name;
             self.model_code = p.Results.model_code;
          else
@@ -222,7 +226,7 @@ classdef StanModel < handle
          p.KeepUnmatched= false;
          p.FunctionName = 'StanModel parameter setter';
          p.addParamValue('stan_home',self.stan_home);
-         p.addParamValue('file',fullfile(self.model_home,self.file));
+         p.addParamValue('file',self.file);
          p.addParamValue('model_name',self.model_name);
          p.addParamValue('model_code',self.model_code);
          p.addParamValue('working_dir',self.working_dir);
@@ -234,13 +238,13 @@ classdef StanModel < handle
          p.addParamValue('thin',self.thin);
          p.addParamValue('init',self.init);
          p.addParamValue('seed',self.seed);
+         p.addParamValue('control',self.control);
          p.addParamValue('chains',self.chains);
          p.addParamValue('inc_warmup',self.inc_warmup);
          p.addParamValue('data',[]);
          p.addParamValue('verbose',self.verbose);
          p.addParamValue('file_overwrite',self.file_overwrite);
          p.addParamValue('refresh',self.refresh);
-         p.addParamValue('checksum_binary',self.checksum_binary,@isstr);
          p.parse(varargin{:});
 
          self.verbose = p.Results.verbose;
@@ -250,7 +254,10 @@ classdef StanModel < handle
             self.model_name = p.Results.model_name;
             self.model_code = p.Results.model_code;
          else
-            self.file = p.Results.file;
+            % Update only if we are not pointing to the same file
+            if ~strcmp(fullfile(self.model_home,self.file),self.model_path)
+               self.file = p.Results.file;
+            end
          end
          self.working_dir = p.Results.working_dir;
          
@@ -269,17 +276,18 @@ classdef StanModel < handle
          self.thin = p.Results.thin;
          self.init = p.Results.init;
          self.seed = p.Results.seed;
+         self.control = p.Results.control;
          self.chains = p.Results.chains;
          self.inc_warmup = p.Results.inc_warmup;
          self.data = p.Results.data;
          self.refresh = p.Results.refresh;
-         self.checksum_binary = p.Results.checksum_binary;
       end
       
       function set.stan_home(self,d)
          [~,fa] = fileattrib(d);
          if fa.directory
-            if exist(fullfile(fa.Name,'makefile'),'file') && exist(fullfile(fa.Name,'bin'),'dir')
+            if exist(fullfile(fa.Name,'makefile'),'file') ...
+                  && exist(fullfile(fa.Name,'bin'),'dir')
                self.stan_home = fa.Name;
             else
                error('stan:stan_home:InputFormat',...
@@ -293,23 +301,28 @@ classdef StanModel < handle
       
       function set.file(self,fname)
          if isempty(fname)
-            uigetfile;
+            self.update_model('file','');
          elseif ischar(fname)
             [path,name,ext] = fileparts(fname);
             if isempty(path)
                fname = fullfile(pwd,fname);
             end
-            if ~exist(fname)
+            if ~exist(fname,'file')
                error('StanModel:file:NoFile','File does not exist');
             end
             self.update_model('file',fname);
          else
-            %error('stan:file:InputFormat','file must be a string');
+            %error('StanModel:file:InputFormat','file must be a string');
          end  
       end
-            
+      
       function file = get.file(self)
          file = self.file_;
+      end
+      
+      function select_file(self)
+         [name,path] = uigetfile('*.stan','Name stan model');
+         self.update_model('file',fullfile(path,name));
       end
  
       function set.model_name(self,model_name)
@@ -342,17 +355,33 @@ classdef StanModel < handle
          end
       end
       
-      function bool = isCompiled(self)
+      function bool = is_compiled(self)
          bool = false;
          if exist(self.model_binary_path,'file')
             % MD5
-            checksum = mstan.DataHash(self.model_binary_path);
-            if strcmp(checksum,self.checksum_binary)
+            chk = mstan.DataHash(self.model_binary_path,struct('Input','file'));
+            if strcmp(chk,self.checksum_binary)
                bool = true;
             end
             return;
          end
       end
+      
+      function chk = get.checksum_stan(self)
+         if exist(self.model_path,'file')
+            chk = mstan.DataHash(self.model_path,struct('Input','file'));
+         else
+            chk = '';
+         end
+      end
+      
+      function chk = get.checksum_binary(self)
+         if exist(self.model_binary_path,'file')
+            chk = mstan.DataHash(self.model_binary_path,struct('Input','file'));
+         else
+            chk = '';
+         end
+      end      
       
       function set.model_code(self,model)
          if isempty(model)
@@ -362,24 +391,25 @@ classdef StanModel < handle
             % Convert a char array into a cell array of strings split by line
             model = regexp(model,'(\r\n|\n|\r)','split')';
          end
-         % FIXME , should deblank lines first for leading whitespace
-         if any(strncmp('data',model,4)) ...
-               || any(strncmp('parameters',model,10))...
-               || any(strncmp('model',model,5))
+         temp = strtrim(model);
+         if any(strncmp('data',temp,4)) ...
+               || any(strncmp('parameters',temp,10))...
+               || any(strncmp('model',temp,5))
             self.update_model('model_code',model);
          else
-            error('does not look like a stan model');
+            error('StanModel:model_code:InputFormat',...
+               'does not look like a stan model');
          end
       end
       
       function model_code = get.model_code(self)
-         if isempty(self.model_home)
+         if isempty(self.file_)%isempty(self.model_home)
             model_code = {};
-            return;
+         else
+            % Always reread file? Or checksum? or listen for property change?
+            % TODO: AbortSet should fix this
+            model_code = mstan.read_lines(fullfile(self.model_home,self.file));
          end
-         % Always reread file? Or checksum? or listen for property change?
-         % TODO: AbortSet should fix this
-         model_code = mstan.read_lines(fullfile(self.model_home,self.file));
       end
       
       function set.model_home(self,d)
@@ -388,15 +418,14 @@ classdef StanModel < handle
          elseif isdir(d)
             [~,fa] = fileattrib(d);
             if fa.UserWrite && fa.UserExecute
-               if ~strcmp(self.model_home,fa.Name) && self.verbose
-                  fprintf('New model_home set.\n');
-               end
                self.model_home = fa.Name;
             else
-               error('Must be able to write and execute in model_home');
+               error('StanModel:model_home:NoWritePermission',... 
+                  'Must be able to write and execute in model_home');
             end
          else
-            error('model_home must be a directory');
+            error('StanModel:model_home:InputFormat',... 
+               'model_home must be a directory');
          end
       end
       
@@ -413,17 +442,19 @@ classdef StanModel < handle
                'working_dir must be a directory');
          end
       end
-            
-      function set.chains(self,nChains)
-         if (nChains>java.lang.Runtime.getRuntime.availableProcessors) || (nChains<1)
+      
+      function set.chains(self,n_chains)
+         n_processors = java.lang.Runtime.getRuntime.availableProcessors;
+         if (n_chains > n_processors) || (n_chains < 1)
             error('stan:chains:InputFormat','# of chains must be from 1 to # of cores.');
          end
-         nChains = min(java.lang.Runtime.getRuntime.availableProcessors,max(1,round(nChains)));
-         self.chains = nChains;
+         n_chains = min(n_processors,max(1,round(n_chains)));
+         self.chains = n_chains;
       end
       
       function set.refresh(self,refresh)
-         validateattributes(refresh,self.validators.output.refresh{1},self.validators.output.refresh{2})
+         validateattributes(refresh,self.validators.output.refresh{1},...
+            self.validators.output.refresh{2})
          self.params.output.refresh = refresh;
       end
       
@@ -441,7 +472,8 @@ classdef StanModel < handle
       end
             
       function set.iter(self,iter)
-         validateattributes(iter,self.validators.sample.num_samples{1},self.validators.sample.num_samples{2})
+         validateattributes(iter,self.validators.sample.num_samples{1},...
+            self.validators.sample.num_samples{2})
          self.params.sample.num_samples = iter;
       end
       
@@ -450,7 +482,8 @@ classdef StanModel < handle
       end
       
       function set.warmup(self,warmup)
-         validateattributes(warmup,self.validators.sample.num_warmup{1},self.validators.sample.num_warmup{2})
+         validateattributes(warmup,self.validators.sample.num_warmup{1},...
+            self.validators.sample.num_warmup{2})
          self.params.sample.num_warmup = warmup;
       end
       
@@ -459,7 +492,8 @@ classdef StanModel < handle
       end
       
       function set.thin(self,thin)
-         validateattributes(thin,self.validators.sample.thin{1},self.validators.sample.thin{2})
+         validateattributes(thin,self.validators.sample.thin{1},...
+            self.validators.sample.thin{2})
          self.params.sample.thin = thin;
       end
       
@@ -488,7 +522,8 @@ classdef StanModel < handle
                self.init = self.defaults.init;
                self.params.init = self.defaults.init;
             else
-               validateattributes(init,self.validators.init{1},self.validators.init{2})
+               validateattributes(init,self.validators.init{1},...
+                  self.validators.init{2})
                self.init = init;
                self.params.init = init;
             end
@@ -496,7 +531,8 @@ classdef StanModel < handle
       end
       
       function set.seed(self,seed)
-         validateattributes(seed,self.validators.random.seed{1},self.validators.random.seed{2})
+         validateattributes(seed,self.validators.random.seed{1},...
+            self.validators.random.seed{2})
          if seed < 0
             self.params.random.seed = round(sum(100*clock));
          else
@@ -539,6 +575,55 @@ classdef StanModel < handle
          end
       end
       
+      function set.control(self,control)
+         if ~isempty(control)
+            assert(isstruct(control),'StanModel:control:InputFormat',...
+               'control must be a structure');
+            fn = fieldnames(control);
+            for i = 1:numel(fn)
+               switch lower(fn{i})
+                  case {'engaged' 'adapt_engaged'}
+                     set_adapt_engaged(self,control.(fn{i}));
+                  case {'gamma' 'adapt_gamma'}
+                     set_adapt_gamma(self,control.(fn{i}));
+                  case {'delta' 'adapt_delta'}
+                     set_adapt_delta(self,control.(fn{i}));
+                  case {'kappa' 'adapt_kappa'}
+                     set_adapt_kappa(self,control.(fn{i}));
+                  case {'t0' 'adapt_t0'}
+                     set_adapt_t0(self,control.(fn{i}));
+                  case {'init_buffer' 'adapt_init_buffer'}
+                     set_adapt_init_buffer(self,control.(fn{i}));
+                  case {'term_buffer' 'adapt_term_buffer'}
+                     set_adapt_term_buffer(self,control.(fn{i}));
+                  case {'window' 'adapt_window'}
+                     set_adapt_window(self,control.(fn{i}));
+                  case {'metric' 'hmc_metric'}
+                     set_hmc_metric(self,control.(fn{i}));
+                  case {'stepsize' 'hmc_stepsize'}
+                     set_hmc_stepsize(self,control.(fn{i}));
+                  case {'stepsize_jitter' 'hmc_stepsize_jitter'}
+                     set_hmc_stepsize_jitter(self,control.(fn{i}));
+                  otherwise
+                     fprintf('%s is not an adapt or hmc parameter\n',fn{i});
+               end
+            end
+         end
+      end
+      
+      function control = get.control(self)
+         if strcmp(self.method,'sample')
+            control = self.params.sample.adapt;
+            if strncmp(self.algorithm,'hmc',3)
+               control.metric = self.params.sample.hmc.metric;
+               control.stepsize = self.params.sample.hmc.stepsize;
+               control.stepsize_jitter = self.params.sample.hmc.stepsize_jitter;
+            end
+         elseif strcmp(self.method,'optimize')
+            control = [];
+         end
+      end
+      
       function set.diagnostic_file(self,name)
          if ischar(name)
             self.params.output.diagnostic_file = name;
@@ -560,7 +645,8 @@ classdef StanModel < handle
       end
       
       function set.inc_warmup(self,bool)
-         validateattributes(bool,self.validators.sample.save_warmup{1},self.validators.sample.save_warmup{2})
+         validateattributes(bool,self.validators.sample.save_warmup{1},...
+            self.validators.sample.save_warmup{2})
          self.params.sample.save_warmup = bool;
       end
       
@@ -582,13 +668,13 @@ classdef StanModel < handle
                self.data = 'from file';
                self.params.data.file = d;
             else
-               error('StanModel:data:FileNotFound','data file not found');
+               %error('StanModel:data:FileNotFound','data file not found');
             end
          else
             %error('StanModel:data:InputFormat','not done');
          end
       end            
-      
+            
       function command = get.command(self)
          command = {[self.model_binary_path ' ']};
          str = mstan.parse_stan_params(self.params,self.method);
@@ -602,8 +688,8 @@ classdef StanModel < handle
          end
          self.set(varargin{:});
          self.method = 'sample';         
-         if ~self.isCompiled
-            if 1%self.verbose
+         if ~self.is_compiled
+            if self.verbose
                fprintf('We have to compile the model first...\n');
             end
             self.compile();
@@ -635,8 +721,6 @@ classdef StanModel < handle
          self.sample_file = base_name;
          self.id = base_id;
          
-         % FIXME: should be passing full filenames here or generating them
-         % in StanFit (ie, include working_dir)
          fit = StanFit('model',copy(self),'processes',p,...
                        'output_file',cellfun(@(x) fullfile(self.working_dir,x),sample_file,'uni',0),...
                        'verbose',self.verbose);
@@ -650,8 +734,8 @@ classdef StanModel < handle
          end
          self.set(varargin{:});
          self.method = 'optimize';
-         if ~self.isCompiled
-            if 1%self.verbose
+         if ~self.is_compiled
+            if self.verbose
                fprintf('We have to compile the model first...\n');
             end
             self.compile();
@@ -689,7 +773,7 @@ classdef StanModel < handle
          p.block(0.05);
          if p.exitValue == 0
             str = regexp(p.stdout{1},'\ ','split');
-            ver = cellfun(@str2num,regexp(str{3},'\.','split'),'uni',0);
+            ver = cellfun(@str2num,regexp(str{3},'\.','split'));
          else
             fprintf('%s\n',p.stdout{:});
          end
@@ -738,11 +822,7 @@ classdef StanModel < handle
                             'printStderr',printStderr,...
                             'printStdout',self.verbose);
          p.block(0.05);
-         if p.exitValue == 0
-            if strcmp(target,'model')
-               self.checksum_binary = mstan.DataHash(self.model_binary_path);
-            end
-         else
+         if p.exitValue ~= 0
             fprintf('Compile failed with exit value: %g\n',p.exitValue);
             error('StanModel:compile:failure','%s\n',p.stderr{:});
          end
@@ -773,21 +853,75 @@ classdef StanModel < handle
    end
    
    methods(Access = private)
+      function set_adapt_engaged(self,bool)
+         validateattributes(bool,self.validators.sample.adapt.engaged{1},...
+            self.validators.sample.adapt.engaged{2})
+         self.params.sample.adapt.engaged = bool;
+      end
+      
+      function set_adapt_gamma(self,val)
+         validateattributes(val,self.validators.sample.adapt.gamma{1},...
+            self.validators.sample.adapt.gamma{2})
+         self.params.sample.adapt.gamma = val;
+      end
+            
+      function set_adapt_delta(self,val)
+         validateattributes(val,self.validators.sample.adapt.delta{1},...
+            self.validators.sample.adapt.delta{2})
+         self.params.sample.adapt.delta = val;
+      end
+            
+      function set_adapt_kappa(self,val)
+         validateattributes(val,self.validators.sample.adapt.kappa{1},...
+            self.validators.sample.adapt.kappa{2})
+         self.params.sample.adapt.kappa = val;
+      end
+            
+      function set_adapt_t0(self,val)
+         validateattributes(val,self.validators.sample.adapt.t0{1},...
+            self.validators.sample.adapt.t0{2})
+         self.params.sample.adapt.t0 = val;
+      end
+      
+      function set_adapt_init_buffer(self,val)
+         validateattributes(val,self.validators.sample.adapt.init_buffer{1},...
+            self.validators.sample.adapt.init_buffer{2})
+         self.params.sample.adapt.init_buffer = val;
+      end
+      
+      function set_adapt_term_buffer(self,val)
+         validateattributes(val,self.validators.sample.adapt.term_buffer{1},...
+            self.validators.sample.adapt.term_buffer{2})
+         self.params.sample.adapt.term_buffer = val;
+      end
+      
+      function set_adapt_window(self,val)
+         validateattributes(val,self.validators.sample.adapt.window{1},...
+            self.validators.sample.adapt.window{2})
+         self.params.sample.adapt.window = val;
+      end
+      
+      function set_hmc_metric(self,val)
+         assert(any(strcmp(self.validators.sample.hmc.metric,val)),...
+            'StanModel:set_hmc_metric:InputFormat','Invalid value for hmc_metric');
+         self.params.sample.hmc.metric = val;
+      end
+      
+      function set_hmc_stepsize(self,val)
+         validateattributes(val,self.validators.sample.hmc.stepsize{1},...
+            self.validators.sample.hmc.stepsize{2})
+         self.params.sample.hmc.stepsize = val;
+      end
+      
+      function set_hmc_stepsize_jitter(self,val)
+         validateattributes(val,self.validators.sample.hmc.stepsize_jitter{1},...
+            self.validators.sample.hmc.stepsize_jitter{2})
+         self.params.sample.hmc.stepsize_jitter = val;
+      end
+      
       function update_model(self,flag,arg)
       % Model must exist with extension .stan, but compiling
       % requires passing the name without extension
-      %
-      % Pystan,
-      % There are three ways to specify the model's code for `stan_model`.
-      % 
-      %     1. parameter `model_code`, containing a string to whose value is
-      %        the Stan model specification,
-      % 
-      %     2. parameter `file`, indicating a file (or a connection) from
-      %        which to read the Stan model specification, or
-      % 
-      %     3. parameter `stanc_ret`, indicating the re-use of a model
-      %          generated in a previous call to `stanc`.
       %
       % in stan object, model is defined by three attributes,
       %   1) a name
@@ -803,11 +937,6 @@ classdef StanModel < handle
       %    set file, model_name, model_home
       % Changing the code
       %    write a new file matching model_name (check overwrite)
-         if nargin == 3
-            if isempty(arg)
-               return;
-            end
-         end
 
          switch lower(flag)
             case {'model_name'}
@@ -821,43 +950,52 @@ classdef StanModel < handle
                   self.update_model('write',self.model_code);
                end
             case {'file'}
-               [path,name,ext] = fileparts(arg);
-               if isempty(path)
-                  path = pwd;
-               end
-               if ~strcmp(ext,'.stan')
-                  error('include extension');
-               end
-               self.file_ = [name ext];
-               self.model_name_ = name;
-               self.model_home = path;
-               self.checksum_stan = mstan.DataHash(self.model_path);
-               if exist(self.model_binary_path,'file')
-                  self.checksum_binary = mstan.DataHash(self.model_binary_path);
+               if isempty(arg)
+                  self.file_ = '';
+                  self.model_name_ = '';
+                  self.model_home = '';
                else
-                  self.checksum_binary = [];
+                  [path,name,ext] = fileparts(arg);
+                  if isempty(path)
+                     path = pwd;
+                  end
+                  if ~strcmp(ext,'.stan')
+                     if exist(fullfile(path,[name '.stan']))
+                        ext = '.stan';
+                     else
+                        error('StanModel:update_model:InputFormat',...
+                           'File defining Stan modelmust include .stan extension');
+                     end
+                  end
+                  self.file_ = [name ext];
+                  self.model_name_ = name;
+                  self.model_home = path;
                end
             case {'model_code'}
                % model name exists (default anon)
                % model home exists
-               self.update_model('write',arg);
+               if ~isempty(arg)
+                  self.update_model('write',arg);
+               end
             case {'write'}
                if isempty(self.model_home)
                   self.model_home = self.working_dir;
                end
                
                fname = self.model_path;
-               if exist(fname,'file') == 2
+               if exist(fname,'file')
                   % Model file already exists
                   % Only write if contents different, avoid trivial recompiles
-                  temp = mstan.read_lines(fname);
-                  if all(strcmp(sprintf('%s\n',temp{:}),sprintf('%s\n',arg{:})))
-                     self.update_model('file',fname);
-                     return;
-                  end
+                  % Cannot be certain that binary did not change?
+%                   temp = mstan.read_lines(fname);
+%                   if all(strcmp(sprintf('%s\n',temp{:}),sprintf('%s\n',arg{:})))%all(strcmp(temp,arg))
+%                      self.update_model('file',fname);
+%                      return;
+%                   end
                   if self.file_overwrite
                      mstan.write_lines(fname,arg);
                      self.update_model('file',fname);
+                     self.delete_binary();
                   else
                      [filename,filepath] = uiputfile('*.stan','Name stan model');
                      [~,name] = fileparts(filename);
@@ -866,13 +1004,30 @@ classdef StanModel < handle
 
                      mstan.write_lines(self.model_path,arg);
                      self.update_model('file',self.model_path);
+                     self.delete_binary();
                   end
                else
                   mstan.write_lines(fname,arg);
                   self.update_model('file',fname);
+                  self.delete_binary();
                end
             otherwise
                error('');
+         end
+      end
+      
+      function delete_binary(self)
+         if exist([self.model_binary_path],'file')
+            delete(self.model_binary_path);
+         end
+         if exist([self.model_binary_path '.cpp'],'file')
+            delete([self.model_binary_path '.cpp']);
+         end
+         if exist([self.model_binary_path '.d'],'file')
+            delete([self.model_binary_path '.d']);
+         end
+         if exist([self.model_binary_path '.o'],'file')
+            delete([self.model_binary_path '.o']);
          end
       end
    end
