@@ -2,4 +2,4 @@
 % your CmdStan installation
 function d = stan_home()
 
-d = '/Users/brian/Downloads/stan-2.1.0';
+d = '/Users/brian/Downloads/stan-2.2.0';
