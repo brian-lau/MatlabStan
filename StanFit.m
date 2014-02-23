@@ -132,6 +132,7 @@ classdef StanFit < handle
          if src.exitValue == 0
             self.process_exit_success(src);
          elseif src.exitValue == 143
+            % TODO: check that SIGTERM (143) is the same on windows/linux?
             self.process_exit_success(src);
          else
             self.process_exit_failure(src);
@@ -194,14 +195,14 @@ classdef StanFit < handle
       function str = print(self,varargin)
          % TODO: 
          % o this should allow multiple files and regexp.
-         % o this does not work when method=optim, should shortcut
+         % x this does not work when method=optim, should shortcut
          %       
          % note that passing regexp through in the command does not work,
          % need to implment search in matlab
          % TODO: allow print parameters
          % FIXME: ugh, if multiple fits were done with same output names
          % print will just give the results from the last one. should
-         % StanModel generate unique names>>>
+         % StanModel generate unique names?
          if strcmp(self.model.method,'optimize')
             fprintf('%s\n',self.processes.stdout{:});
             return;
@@ -233,12 +234,20 @@ classdef StanFit < handle
          p = processManager('command',command,...
                             'workingDir',self.model.working_dir,...
                             'wrap',100,...
+                            'printStdout',false,...
+                            'printStderr',false,...
                             'keepStdout',true,...
                             'keepStderr',true);
          p.block(0.05);
          if p.exitValue == 0
             str = p.stdout;
+            fprintf('%s\n',str{:});
          else
+            if any(strcmp(p.stdout,'Warning: non-fatal error reading adapation data'))...
+               || any(strcmp(p.stdout,'Warning: non-fatal error reading samples'))
+               fprintf('Looks like print got called before any samples were saved.\n');
+               fprintf('Wait a bit longer, or attach a listener.\n');
+            end   
             str = p.stderr;
          end
       end
@@ -250,14 +259,8 @@ classdef StanFit < handle
          % FIXME: is_running can return false before self.loaded
          if ~isempty(self.processes)%is_running(self) % stan called
             % FIXME, what if callback fails??
-            count = 1;
             while nansum(self.loaded) ~= numel(self.loaded)
                java.lang.Thread.sleep(0.05*1000);
-               count = count + 1;
-               if count > 1000
-                  warning('block() is taking too long');
-                  break;
-               end
             end
          end
       end
