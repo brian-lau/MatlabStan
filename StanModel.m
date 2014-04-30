@@ -156,7 +156,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.6.0';
+      version = '0.6.1';
    end
 
    methods
@@ -182,17 +182,31 @@ classdef StanModel < handle
          self.verbose = p.Results.verbose;
          self.file_overwrite = p.Results.file_overwrite;
          self.stan_home = p.Results.stan_home;
-         
+
+         if ~exist('processManager')
+            error('StanModel:constructor:MissingFunction',...
+               'processManager (https://github.com/brian-lau/MatlabProcessManager) is required');
+         end
+
+         count = 0;
          while 1 % FIXME, occasionally stanc does not return version?
-            % This is likely a problem with Java running out of file
-            % descriptors.
             try
                ver = self.stan_version();
                [self.defaults,self.validators] = mstan.stan_params(ver);
                break;
             catch err
-               disp('Having a problem getting stan version.');
-               disp('Trying again.');
+               if count == 0
+                  disp('Having a problem getting stan version.');
+                  disp('This is likely a problem with Java running out of file descriptors');
+               end
+               if count <= 5
+                   disp('Trying again.');
+                   pause(0.25);
+               else
+                   disp('Giving up.');
+                   rethrow(err);
+               end
+               count = count + 1;
             end
          end
          self.params = self.defaults;         
@@ -290,11 +304,11 @@ classdef StanModel < handle
                   && exist(fullfile(fa.Name,'bin'),'dir')
                self.stan_home = fa.Name;
             else
-               error('stan:stan_home:InputFormat',...
+               error('StanModel:stan_home:InputFormat',...
                   'Does not look like a proper stan setup');
             end
          else
-            error('stan:stan_home:InputFormat',...
+            error('StanModel:stan_home:InputFormat',...
                'stan_home must be the base directory for stan');
          end
       end
