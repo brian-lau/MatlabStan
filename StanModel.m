@@ -298,7 +298,11 @@ classdef StanModel < handle
       end
       
       function set.stan_home(self,d)
-         [~,fa] = fileattrib(d);
+         [success,fa] = fileattrib(d);
+         if ~success
+            error('StanModel:stan_home:InputFormat',...
+               'Can''t parse stan_home. Is it set correctly?');
+         end
          if fa.directory
             if exist(fullfile(fa.Name,'makefile'),'file') ...
                   && exist(fullfile(fa.Name,'bin'),'dir')
