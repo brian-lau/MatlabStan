@@ -35,8 +35,15 @@ classdef TestStanModel < TestCase
       end
       
       function testContructorArgs(self)
+         s = StanModel();
+         
+         if mstan.check_ver(s.stan_version,'2.4.0')
+            model_file = fullfile(mstan.stan_home,'stan','src','models','basic_estimators','bernoulli.stan');
+         else
+            model_file = fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan');
+         end
          s = StanModel('file',...
-            fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan'),...
+            model_file,...
             'working_dir',tempdir,...
             'method','optimize',...
             'sample_file','junk',...
@@ -54,7 +61,7 @@ classdef TestStanModel < TestCase
             'refresh',5000);
          
          assertEqual(s.model_path,...
-            fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan'));
+            model_file);
          assertEqual(s.working_dir,fileparts(tempdir));
          assertEqual(s.file,'bernoulli.stan');
          assertEqual(s.model_name,'bernoulli');
@@ -77,8 +84,13 @@ classdef TestStanModel < TestCase
       function testSet(self)
          s = StanModel();
          
+         if mstan.check_ver(s.stan_version,'2.4.0')
+            model_file = fullfile(mstan.stan_home,'stan','src','models','basic_estimators','bernoulli.stan');
+         else
+            model_file = fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan');
+         end
          s.set('file',...
-            fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan'),...
+            model_file,...
             'working_dir',tempdir,...
             'method','optimize',...
             'sample_file','junk',...
@@ -96,7 +108,7 @@ classdef TestStanModel < TestCase
             'refresh',5000);
          
          assertEqual(s.model_path,...
-            fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan'));
+            model_file);
          assertEqual(s.working_dir,fileparts(tempdir));
          assertEqual(s.file,'bernoulli.stan');
          assertEqual(s.model_name,'bernoulli');
