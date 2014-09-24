@@ -156,7 +156,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.6.0';
+      version = '0.6.1';
    end
 
    methods
@@ -164,7 +164,7 @@ classdef StanModel < handle
       %% Constructor      
       function self = StanModel(varargin)
          p = inputParser;
-         p.KeepUnmatched= true;
+         p.KeepUnmatched = true;
          p.FunctionName = 'stan constructor';
          p.addParamValue('stan_home',mstan.stan_home);
          p.addParamValue('file','');
@@ -445,11 +445,13 @@ classdef StanModel < handle
       
       function set.chains(self,n_chains)
          n_processors = java.lang.Runtime.getRuntime.availableProcessors;
-         if (n_chains > n_processors) || (n_chains < 1)
-            error('stan:chains:InputFormat','# of chains must be from 1 to # of cores.');
+         if n_chains < 1
+            fprintf('Setting # of chains = 1\n');
+            n_chains = 1;
+         elseif n_chains > n_processors
+            warning('stan:chains:InputFormat','# of chains > # of cores.');
          end
-         n_chains = min(n_processors,max(1,round(n_chains)));
-         self.chains = n_chains;
+         self.chains = round(n_chains);
       end
       
       function set.refresh(self,refresh)
@@ -809,11 +811,16 @@ classdef StanModel < handle
             command = ['make bin/' target];
             printStderr = false;
          elseif strcmp(target,'model')
-            command = ['make ' self.model_binary_path];
+            if ispc
+               command = ['make ' regexprep(self.model_binary_path,'\','/')];
+            else
+               command = ['make ' self.model_binary_path];
+            end
             printStderr = and(true,self.verbose);
          else
             error('Unknown target');
          end
+
          p = processManager('id','compile',...
                             'command',command,...
                             'workingDir',self.stan_home,...
