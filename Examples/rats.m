@@ -1,11 +1,34 @@
-rats = importdata('rats.txt');
-y = rats.data;
+% http://mathstat.helsinki.fi/openbugs/Examples/Rats.html
+
+y = [151, 145, 147, 155, 135, 159, 141, 159, 177, 134, ...
+160, 143, 154, 171, 163, 160, 142, 156, 157, 152, 154, 139, 146, ...
+157, 132, 160, 169, 157, 137, 153, 199, 199, 214, 200, 188, 210, ...
+189, 201, 236, 182, 208, 188, 200, 221, 216, 207, 187, 203, 212, ...
+203, 205, 190, 191, 211, 185, 207, 216, 205, 180, 200, 246, 249, ...
+263, 237, 230, 252, 231, 248, 285, 220, 261, 220, 244, 270, 242, ...
+248, 234, 243, 259, 246, 253, 225, 229, 250, 237, 257, 261, 248, ...
+219, 244, 283, 293, 312, 272, 280, 298, 275, 297, 350, 260, 313, ...
+273, 289, 326, 281, 288, 280, 283, 307, 286, 298, 267, 272, 285, ...
+286, 303, 295, 289, 258, 286, 320, 354, 328, 297, 323, 331, 305, ...
+338, 376, 296, 352, 314, 325, 358, 312, 324, 316, 317, 336, 321, ...
+334, 302, 302, 323, 331, 345, 333, 316, 291, 324];
+y = reshape(y,30,5);
 x = [8 15 22 29 36];
+
 rats_dat = struct('N',size(y,1),'TT',size(y,2),'x',x,'y',y,'xbar',mean(x));
 
 rats_fit = stan('file','rats.stan','data',rats_dat,'verbose',true);
 
-%
-%model = StanModel('file','rats.stan','stan_home',...
-%   '/Users/brian/Downloads/stan-2.0.1','verbose',true);
-%fit = model.sampling('data',rats_dat);
+print(rats_fit);
+
+samples = fit.extract('permuted',true);
+fprintf('\n\tmean    sd\n')
+fprintf('alpha0\t%1.3f\t%1.3f\n',mean(samples.alpha0),std(samples.alpha0));
+fprintf('beta.c\t%1.3f\t%1.3f\n',mean(samples.mu_beta),std(samples.mu_beta));
+fprintf('sigma\t%1.3f\t%1.3f\n',mean(samples.sigma_y),std(samples.sigma_y));
+
+% compare to Bugs output (http://mathstat.helsinki.fi/openbugs/Examples/Rats.html)
+%          mean    sd
+% alpha0   106.6   3.655
+% beta.c   6.185   0.1061
+% sigma    6.086   0.4606

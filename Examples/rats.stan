@@ -1,3 +1,5 @@
+# https://github.com/stan-dev/example-models/tree/d09a5f38d5fc12f9e9d08a1203429d7e49334e72/bugs_examples/vol1/rats
+#
 # http://www.mrc-bsu.cam.ac.uk/bugs/winbugs/Vol1.pdf
 # Page 3: Rats
 data {
