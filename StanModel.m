@@ -375,7 +375,7 @@ classdef StanModel < handle
       
       function bool = is_compiled(self)
          bool = false;
-         if exist(self.model_binary_path,'file')
+         if ~isempty(dir(self.model_binary_path))
             % MD5
             chk = mstan.DataHash(self.model_binary_path,struct('Input','file'));
             if strcmp(chk,self.checksum_binary)
