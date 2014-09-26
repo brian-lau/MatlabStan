@@ -47,7 +47,7 @@
 %              corresponding to parameters to be initialized.
 %     seed   - scalar, optional
 %              Random number generator seed. Default = round(sum(100*clock))
-%              Note that this seed is differopent from Matlab's RNG seed, and
+%              Note that this seed is different from Matlab's RNG seed, and
 %              is only used to sample from Stan models. For multiple chains
 %              each chain is seeded according to a deterministic function
 %              of the provided seed to avoid dependency.

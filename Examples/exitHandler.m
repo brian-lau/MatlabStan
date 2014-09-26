@@ -1,4 +1,4 @@
-
+% see https://github.com/brian-lau/MatlabStan/wiki/Using-listeners-to-notify-when-sampling-is-complete
 
 function exitHandler(src,data)
    fprintf('\n');
