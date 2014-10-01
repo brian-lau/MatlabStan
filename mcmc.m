@@ -6,6 +6,7 @@
 % o extract should allow excluding chains
 % o should be way to delete chains
 % o clean() should delete sample files and intermediate?
+% 
 
 classdef mcmc < handle
    properties(Dependent = true)
@@ -20,15 +21,20 @@ classdef mcmc < handle
    properties(SetAccess = private)
       warmup
       samples
-      % FIXME, this assigment is always the same
-      rng_state = rng % This is for the Matlab RNG
+      rng_state % This is for the Matlab RNG
    end
    properties(GetAccess = public, SetAccess = protected)
       version = '0.1.0';
    end
    
    methods
-      function self = mcmc()
+      function self = mcmc(seed)
+         if nargin == 1
+            rng(seed);
+            self.rng_state = rng;
+         else
+            self.rng_state = rng;
+         end
       end
 
       function n = get.n_warmup(self)

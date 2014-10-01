@@ -6,6 +6,7 @@
 % o merge()
 % o auto merge when handles equal?
 % o should be able to construct stanfit object from just csv files
+% o some way to periodically read or peek at incoming samples?
 
 % Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
 classdef StanFit < handle
@@ -77,7 +78,11 @@ classdef StanFit < handle
                'The number of processes should match the number of expected data files.');
          end
          
-         self.sim_ = mcmc;
+         if isprop(self.model,'seed')
+           self.sim_ = mcmc(self.model.seed);
+         else
+            self.sim_ = mcmc();
+         end
       end
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -189,6 +194,7 @@ classdef StanFit < handle
       end
       
       function process_exit_failure(self,src)
+         % TODO, check against Stan errors, and print to screen
          warning('Stan seems to have exited badly.');
       end
             
