@@ -13,10 +13,45 @@ classdef TestMCMC < TestCase
       function setUp(self)
       end
       
+      function test_rng_state(self)
+         d = self.fake_chain_data();
+         m = mcmc(1234);
+
+         assertEqual(m.rng_state.Seed,uint32(1234));
+         
+         % add one chain
+         chain_ind = 1;
+         m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);
+         assertTrue(all(ismember(m.names,d.names)))
+         self.validate_data(m,d,chain_ind);
+
+         % Check that repeated extractions yield same sequence
+         temp1 = m.extract;
+         temp2 = m.extract;
+         temp3 = m.extract('permuted',false);
+         assertTrue(isequal(temp1,temp2));
+         assertFalse(isequal(temp1,temp3));
+         assertFalse(isequal(temp2,temp3));
+
+         m.rng_state = 4321;
+         
+         assertEqual(m.rng_state.Seed,uint32(4321));
+         
+         % Check that new seed yields new permutations
+         temp4 = m.extract;
+         temp5 = m.extract;
+         temp6 = m.extract('permuted',false);
+         assertTrue(isequal(temp4,temp5));
+         assertFalse(isequal(temp4,temp6));
+         assertFalse(isequal(temp5,temp6));
+         assertFalse(isequal(temp1,temp4));
+         assertTrue(isequal(temp3,temp6));
+      end
+      
       function test_new_chain1(self)
          d = self.fake_chain_data();
          m = mcmc;
-         
+
          % add one chain
          chain_ind = 1;
          m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);

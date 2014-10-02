@@ -21,17 +21,20 @@ classdef mcmc < handle
    properties(SetAccess = private)
       warmup
       samples
+   end
+   properties(Hidden = true, SetAccess = public)
       rng_state % This is for the Matlab RNG
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.1.0';
+      version = '0.2.0';
    end
    
    methods
       function self = mcmc(seed)
          if nargin == 1
-            rng(seed);
-            self.rng_state = rng;
+            %rng(seed);
+            %self.rng_state = rng;
+            self.rng_state = seed;
          else
             self.rng_state = rng;
          end
@@ -83,6 +86,20 @@ classdef mcmc < handle
          end
       end
 
+      function set.rng_state(self,r)
+         if nargin == 2
+            if (isstruct(r)) || (isscalar(r) && (r>=0)) 
+               rng(r);
+               self.rng_state = rng;
+            else
+               error('mcmc:rng:InputFormat','Not a valid seed or struct for RNG.');
+            end
+         else
+            % Default to seed&state of current rng
+            self.rng_state = rng;
+         end
+      end
+      
       function append(self,C,names,exp_warmup,exp_iter,chain_ind)
          [warmup,samples] = self.parse_combined_warmup_samples(...
             C,names,exp_warmup,exp_iter);
