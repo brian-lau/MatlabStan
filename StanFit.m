@@ -1,14 +1,11 @@
 % TODO: 
 % x clean up and generalize for both sampling and optim
-% x stop() 
-% x verbose() 
-% x account for thinning
+%   o separate out optim from mcmc object?
 % o merge()
 % o auto merge when handles equal?
 % o should be able to construct stanfit object from just csv files
 % o some way to periodically read or peek at incoming samples?
 
-% Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
 classdef StanFit < handle
    properties
       model     % StanModel object
@@ -32,7 +29,7 @@ classdef StanFit < handle
       exit
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.6.0';
+      version = '0.7.0';
    end
    
    methods
@@ -107,6 +104,22 @@ classdef StanFit < handle
          end
       end
       
+      function check(self)
+         if ~isempty(self.processes)
+            if any([self.processes.running])
+               for i = 1:numel(self.processes)
+                  if self.processes(i).running;
+                     fprintf('%s \t %s\n',self.processes(i).id,self.processes(i).stdout{end});
+                  end
+               end
+            else
+               fprintf('All Stan processes finished.\n');
+            end
+         else
+            fprintf('Nothing to check.\n');
+         end
+      end
+      
       function sim = get.sim(self)
          if exit_with_data(self)
             sim = self.sim_;
@@ -144,6 +157,37 @@ classdef StanFit < handle
          end
       end
       
+      function out = peek(self)
+         if strcmp(self.model.method,'optimize')
+            % FIXME, check if done before printing this
+            fprintf('Nothing to peek at, optimizing');
+            return;
+         elseif strcmp(self.model.method,'sample')
+            for ind = 1:numel(self.output_file)
+               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+                  self.output_file{ind},self.model.inc_warmup);
+               keyboard
+               [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
+               
+               % Account for thinning
+               if self.model.inc_warmup
+                  exp_warmup = ceil(self.model.warmup/self.model.thin);
+               else
+                  exp_warmup = 0;
+               end
+               exp_iter = ceil(self.model.iter/self.model.thin);
+
+               try
+               self.sim_.remove(ind);
+               catch,
+               end
+               % Append to mcmc object
+               self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
+               self.sim_.user_data{ind} = hdr;
+            end
+         end
+      end
+      
       function process_exit_success(self,src)
          ind = strcmp(self.output_file,fullfile(self.model.working_dir,src.id));
          self.exit_value(ind) = src.exitValue;
@@ -156,7 +200,7 @@ classdef StanFit < handle
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
                   self.output_file{ind},true);
             elseif strcmp(self.model.method,'sample')
-               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+               [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
@@ -195,6 +239,7 @@ classdef StanFit < handle
       
       function process_exit_failure(self,src)
          % TODO, check against Stan errors, and print to screen
+         % Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
          warning('Stan seems to have exited badly.');
       end
             
@@ -266,6 +311,7 @@ classdef StanFit < handle
          if ~isempty(self.processes)%is_running(self) % stan called
             % FIXME, what if callback fails??
             while nansum(self.loaded) ~= numel(self.loaded)
+               % pause() in some Matlab versions leaks memory
                java.lang.Thread.sleep(0.05*1000);
             end
          end

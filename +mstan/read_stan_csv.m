@@ -2,7 +2,7 @@
 % also
 % is the inc_warmup flag necesasry here? function should be able to infer
 % inc_warmup = true works for optimizing files as well
-function [hdr,varNames,samples] = read_stan_csv(fname,inc_warmup)
+function [hdr,varNames,samples,pos] = read_stan_csv(fname,inc_warmup)
    if nargin < 2
       inc_warmup = false;
    end
@@ -32,7 +32,7 @@ function [hdr,varNames,samples] = read_stan_csv(fname,inc_warmup)
    nCols = numel(varNames);
 
    cols = [repmat('%f',1,nCols)];
-   samples = textscan(fid,cols,'CollectOutput',true,'CommentStyle','#','Delimiter',',');
+   [samples,pos] = textscan(fid,cols,'CollectOutput',true,'CommentStyle','#','Delimiter',',');
    samples = samples{1};
    
    fclose(fid);
