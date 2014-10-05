@@ -17,9 +17,9 @@ x = [8 15 22 29 36];
 
 rats_dat = struct('N',size(y,1),'TT',size(y,2),'x',x,'y',y,'xbar',mean(x));
 
-rats_fit = stan('file','rats.stan','data',rats_dat,'verbose',true);
+fit = stan('file','rats.stan','data',rats_dat,'verbose',true);
 
-print(rats_fit);
+print(fit);
 
 samples = fit.extract('permuted',true);
 fprintf('\n\tmean    sd\n')
