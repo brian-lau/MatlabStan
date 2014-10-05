@@ -1,4 +1,3 @@
-
 % Convert CmdStan parameters and samples as returned in csv file into matrices
 % of correct dimensionality
 function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSamples)
@@ -37,7 +36,12 @@ function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSample
       if size(temp,1) == 1 % optimizing = 1 sample
          varSamples{j} = reshape(temp,varDims{j});
       else
-         varSamples{j} = reshape(temp,[length(temp) varDims{j}]);
+         try
+         %varSamples{j} = reshape(temp,[length(temp) varDims{j}]);
+         varSamples{j} = reshape(temp,[size(temp,1) varDims{j}]);
+         catch,
+            keyboard;
+         end
       end
    end
 end
