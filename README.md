@@ -3,17 +3,7 @@ A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian infere
 
 For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at http://mc-stan.org/.
 
-## Status
-Developed on Matlab 2012a and OSX. Passes unit tests on Windows 7 with Matlab 2013a.
-Should work on Linux, although someone needs to test it...
-
 ## Installation
-Install
-
-1. CmdStan 2.0.1 or greater
-2. MatlabProcessManager 0.4.0 or greater
-3. MatlabStan
-
 Details are provided in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
 
 ##Example
