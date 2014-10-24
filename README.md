@@ -1,14 +1,16 @@
 # MatlabStan
+<a href="http://mc-stan.org">
+<img src="https://github.com/stan-dev/stan/blob/master/logos/stanlogo-main.png?raw=true" alt="Stan Logo"/>
+</a>
 A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference.
 
-For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at http://mc-stan.org/.
+For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at [http://mc-stan.org/](http://mc-stan.org/).
 
 ## Installation
-Details are provided in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
+Details can be found in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
 
 ##Example
-Examples can be found in various sections of the [wiki](https://github.com/brian-lau/MatlabStan/wiki).
-The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The following can be compared to the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) versions.
+The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The output can be compared to that obtained using the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) interfaces.
 ```
 schools_code = {
    'data {'
