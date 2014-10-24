@@ -37,7 +37,9 @@ classdef TestStanModel < TestCase
       function testContructorArgs(self)
          s = StanModel();
          
-         if mstan.check_ver(s.stan_version,'2.4.0')
+         if mstan.check_ver(s.stan_version,'2.5.0')
+            model_file = fullfile(mstan.stan_home,'stan','example-models','basic_estimators','bernoulli.stan');
+         elseif mstan.check_ver(s.stan_version,'2.4.0')
             model_file = fullfile(mstan.stan_home,'stan','src','models','basic_estimators','bernoulli.stan');
          else
             model_file = fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan');
@@ -84,7 +86,9 @@ classdef TestStanModel < TestCase
       function testSet(self)
          s = StanModel();
          
-         if mstan.check_ver(s.stan_version,'2.4.0')
+         if mstan.check_ver(s.stan_version,'2.5.0')
+            model_file = fullfile(mstan.stan_home,'stan','example-models','basic_estimators','bernoulli.stan');
+         elseif mstan.check_ver(s.stan_version,'2.4.0')
             model_file = fullfile(mstan.stan_home,'stan','src','models','basic_estimators','bernoulli.stan');
          else
             model_file = fullfile(mstan.stan_home,'src','models','basic_estimators','bernoulli.stan');
