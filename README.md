@@ -10,7 +10,7 @@ For more information on Stan and its modeling language, see the Stan User's Guid
 Details can be found in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
 
 ##Example
-The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The output can be compared to that obtained using the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) interfaces.
+The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The output can be compared to that obtained using the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started#example-1-eight-schools) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst#example) interfaces.
 ```
 schools_code = {
    'data {'
@@ -51,6 +51,6 @@ You may be able to find a solution in the [wiki](https://github.com/brian-lau/Ma
 
 Contributions
 --------------------------------
-Copyright (c) 2014 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
+Copyright (c) 2015 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
 
-Please feel from to [fork](https://github.com/brian-lau/MatlabStan/fork) and contribute!
+Please feel free to [fork](https://github.com/brian-lau/MatlabStan/fork) and contribute!
