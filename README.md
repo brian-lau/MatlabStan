@@ -1,24 +1,16 @@
 # MatlabStan
+<a href="http://mc-stan.org">
+<img src="https://github.com/stan-dev/stan/blob/master/logos/stanlogo-main.png?raw=true" alt="Stan Logo"/>
+</a>
 A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference.
 
-For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at http://mc-stan.org/.
-
-## Status
-Developed on Matlab 2012a and OSX. Passes unit tests on Windows 7 with Matlab 2013a.
-Should work on Linux, although someone needs to test it...
+For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at [http://mc-stan.org/](http://mc-stan.org/).
 
 ## Installation
-Install
-
-1. CmdStan 2.0.1 or greater
-2. MatlabProcessManager 0.4.0 or greater
-3. MatlabStan
-
-Details are provided in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
+Details can be found in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
 
 ##Example
-Examples can be found in various sections of the [wiki](https://github.com/brian-lau/MatlabStan/wiki).
-The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The following can be compared to the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst) versions.
+The following is the classic 'eight schools' example from Section 5.5 of [Gelman et al (2003)](http://stat.columbia.edu/~gelman/book/). The output can be compared to that obtained using the [Rstan](https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started#example-1-eight-schools) and [Pystan](https://github.com/stan-dev/pystan/blob/develop/README.rst#example) interfaces.
 ```
 schools_code = {
    'data {'
@@ -59,6 +51,6 @@ You may be able to find a solution in the [wiki](https://github.com/brian-lau/Ma
 
 Contributions
 --------------------------------
-Copyright (c) 2014 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
+Copyright (c) 2015 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
 
-Please feel from to [fork](https://github.com/brian-lau/MatlabStan/fork) and contribute!
+Please feel free to [fork](https://github.com/brian-lau/MatlabStan/fork) and contribute!
