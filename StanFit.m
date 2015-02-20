@@ -21,9 +21,10 @@ classdef StanFit < handle
       sim
    end
    properties(SetAccess = private, Hidden = true)
+      pos_
       sim_
-      warmup_
-      iter_
+      %warmup_
+      %iter_
    end
    events
       exit
@@ -76,7 +77,7 @@ classdef StanFit < handle
          end
          
          if isprop(self.model,'seed')
-           self.sim_ = mcmc(self.model.seed);
+            self.sim_ = mcmc(self.model.seed);
          else
             self.sim_ = mcmc();
          end
@@ -105,6 +106,7 @@ classdef StanFit < handle
       end
       
       function check(self)
+         % Print status to screen for each running chain.
          if ~isempty(self.processes)
             if any([self.processes.running])
                for i = 1:numel(self.processes)
@@ -164,31 +166,36 @@ classdef StanFit < handle
             return;
          elseif strcmp(self.model.method,'sample')
             for ind = 1:numel(self.output_file)
-               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+               [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
-               keyboard
-               [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
                
-               % Account for thinning
-               if self.model.inc_warmup
-                  exp_warmup = ceil(self.model.warmup/self.model.thin);
+               if isempty(flatSamples)
+                  disp('Stan hasn''t saved any samples for this chain yet');
                else
-                  exp_warmup = 0;
+                  [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
+                  
+                  % Account for thinning
+                  if self.model.inc_warmup
+                     exp_warmup = ceil(self.model.warmup/self.model.thin);
+                  else
+                     exp_warmup = 0;
+                  end
+                  exp_iter = ceil(self.model.iter/self.model.thin);
+                  
+                  try
+                     self.sim_.remove(ind);
+                  catch
+                  end
+                  % Append to mcmc object
+                  self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
+                  self.sim_.user_data{ind} = hdr;
                end
-               exp_iter = ceil(self.model.iter/self.model.thin);
-
-               try
-               self.sim_.remove(ind);
-               catch,
-               end
-               % Append to mcmc object
-               self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
-               self.sim_.user_data{ind} = hdr;
             end
          end
       end
       
       function process_exit_success(self,src)
+         % FIXME is there ever a possibility that we get simultaneous notifications
          ind = strcmp(self.output_file,fullfile(self.model.working_dir,src.id));
          self.exit_value(ind) = src.exitValue;
          if self.verbose
@@ -218,21 +225,24 @@ classdef StanFit < handle
                exp_iter = ceil(self.model.iter/self.model.thin);
             end
             
+            try
+               self.sim_.remove(ind);
+            catch
+            end
             % Append to mcmc object
             self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
             self.sim_.user_data{ind} = hdr;
          end
 
-         %self.flat_pars = flatNames;
          if self.verbose
             fprintf('stan finished processing %s\n',src.id);
          end
          self.loaded(ind) = true;
          if nansum(self.loaded) == numel(self.loaded)
-            if any(arrayfun(@(x) isempty(x.lp__),self.iter_))
-               % FIXME: not a good check, eventually we may not keep lp__
-               warning('Failure to load chains correctly');
-            end
+            %if any(arrayfun(@(x) isempty(x.lp__),self.iter_))
+            %   % FIXME: not a good check, eventually we may not keep lp__
+            %   warning('Failure to load chains correctly');
+            %end
             notify(self,'exit');
          end
       end

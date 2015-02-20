@@ -1,13 +1,15 @@
 % TODO, end of csv has commented lines with timing info, should scan
-% also
-% is the inc_warmup flag necesasry here? function should be able to infer
 % inc_warmup = true works for optimizing files as well
-function [hdr,varNames,samples,pos] = read_stan_csv(fname,inc_warmup)
+function [hdr,varNames,samples,pos] = read_stan_csv(fname,inc_warmup,pos)
    if nargin < 2
       inc_warmup = false;
    end
 
    fid = fopen(fname);
+   if nargin == 3
+      fseek(fpos);
+   end
+   
    count = 1;
    while 1
       l = fgetl(fid);
@@ -25,14 +27,16 @@ function [hdr,varNames,samples,pos] = read_stan_csv(fname,inc_warmup)
          end
          break
       end
-      %disp(line);
       count = count + 1;
    end
    hdr = sprintf('%s\n',line{:});
    nCols = numel(varNames);
 
-   cols = [repmat('%f',1,nCols)];
-   [samples,pos] = textscan(fid,cols,'CollectOutput',true,'CommentStyle','#','Delimiter',',');
+   cols = repmat('%f',1,nCols);
+   % textscan slow, replace with sscanf?
+   % http://boffinblogger.blogspot.fr/2012/12/faster-text-file-reading-with-matlab.html
+   [samples,pos] = textscan(fid,cols,'CollectOutput',true,...
+      'CommentStyle','#','Delimiter',',');
    samples = samples{1};
    
    fclose(fid);
