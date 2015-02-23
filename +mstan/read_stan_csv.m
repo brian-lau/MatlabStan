@@ -7,7 +7,10 @@ function [hdr,varNames,samples,pos] = read_stan_csv(fname,inc_warmup,pos)
 
    fid = fopen(fname);
    if nargin == 3
-      fseek(fpos);
+      status = fseek(fid,pos,'bof');
+      if status == -1
+         error('Could not advance to requested position.');
+      end
    end
    
    count = 1;
@@ -38,6 +41,13 @@ function [hdr,varNames,samples,pos] = read_stan_csv(fname,inc_warmup,pos)
    [samples,pos] = textscan(fid,cols,'CollectOutput',true,...
       'CommentStyle','#','Delimiter',',');
    samples = samples{1};
+   
+   if nargout == 4
+      pos = ftell(fid);
+      if pos == -1
+         warning('Could not determine position in file.');
+      end
+   end
    
    fclose(fid);
 end

@@ -1,3 +1,15 @@
+% STANFIT - Class defining the fit of a Stan model
+%
+%     obj = StanFit(varargin);
+%
+%     There is no need for users to create instances of StanFit objects.
+%     StanFit instances are returned when calling the 'stan' function, or
+%     when invoking the 'sampling' method of a StanModel instance.
+%
+%     All inputs are passed in using name/value pairs. The name is a string
+%     followed by the value (described below).
+%     The order of the pairs does not matter, nor does the case.
+
 % TODO: 
 % x clean up and generalize for both sampling and optim
 %   o separate out optim from mcmc object?
@@ -21,16 +33,14 @@ classdef StanFit < handle
       sim
    end
    properties(SetAccess = private, Hidden = true)
-      pos_
+      pos_ % cache file positions
       sim_
-      %warmup_
-      %iter_
    end
    events
       exit
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.7.0';
+      version = '0.8.0';
    end
    
    methods
@@ -70,6 +80,8 @@ classdef StanFit < handle
             self.exit_value = nan(size(self.output_file));
             self.loaded = nan(size(self.output_file));
          end
+         
+         self.pos_ = nan(size(self.output_file));
 
          if numel(self.processes) ~= numel(self.output_file)
             error('StanFit:constructor:InputFormat',...
@@ -131,7 +143,7 @@ classdef StanFit < handle
       end
       
       function out = extract(self,varargin)         
-         if ~exit_with_data(self)
+         if ~exit_with_data(self) && all(isnan(self.pos_))
             out = [];
             return;
          end
@@ -159,9 +171,13 @@ classdef StanFit < handle
          end
       end
       
-      function out = peek(self)
+      function peek(self)
+         if exit_with_data(self)
+            fprintf('Nothing to peek at, Stan is already done.');
+            return;
+         end
+         
          if strcmp(self.model.method,'optimize')
-            % FIXME, check if done before printing this
             fprintf('Nothing to peek at, optimizing');
             return;
          elseif strcmp(self.model.method,'sample')
@@ -169,6 +185,7 @@ classdef StanFit < handle
                [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
                
+               self.pos_(ind) = pos;
                if isempty(flatSamples)
                   disp('Stan hasn''t saved any samples for this chain yet');
                else
@@ -182,10 +199,12 @@ classdef StanFit < handle
                   end
                   exp_iter = ceil(self.model.iter/self.model.thin);
                   
+                  % FIXME, currently remove existing chain
                   try
                      self.sim_.remove(ind);
                   catch
                   end
+                  
                   % Append to mcmc object
                   self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
                   self.sim_.user_data{ind} = hdr;
@@ -225,10 +244,12 @@ classdef StanFit < handle
                exp_iter = ceil(self.model.iter/self.model.thin);
             end
             
+            % FIXME, currently remove existing chain
             try
                self.sim_.remove(ind);
             catch
             end
+            
             % Append to mcmc object
             self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
             self.sim_.user_data{ind} = hdr;
@@ -250,9 +271,15 @@ classdef StanFit < handle
       function process_exit_failure(self,src)
          % TODO, check against Stan errors, and print to screen
          % Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
+         % OK = 0,
+         % USAGE = 64,
+         % DATAERR = 65,
+         % NOINPUT = 66,
+         % SOFTWARE = 70,
+         % CONFIG = 78
          warning('Stan seems to have exited badly.');
       end
-            
+      
       function str = print(self,varargin)
          % TODO: 
          % o this should allow multiple files and regexp.
@@ -337,12 +364,15 @@ classdef StanFit < handle
       function bool = exit_with_data(self)
          bool = false;
          if ~isempty(self.processes) % stan called
-            if is_running(self) % not finished
+            if is_running(self) && ~all(isnan(self.pos_))
+               % not finished, but peek has been called for partial samples
+            elseif is_running(self) && all(isnan(self.pos_)) % not finished
                fprintf('Stan is still working. You can either:\n');
-               fprintf('  Come back later, or\n');
-               fprintf('  Attach a listener to the StanFit object.\n');
+               fprintf('  1) Use the peek method to get partial samples\n');
+               fprintf('  2) Come back later, or\n');
+               fprintf('  3) Attach a listener to the StanFit object.\n');
             elseif all((self.exit_value == 0) | (self.exit_value == 143)) % finished cleanly
-            % TODO: check that SIGTERM (143) is the same on windows/linux?
+               % TODO: check that SIGTERM (143) is the same on windows/linux?
                bool = true;
             else % finished badly
                fprintf('Stan seems to have encountered a problem.\n');
