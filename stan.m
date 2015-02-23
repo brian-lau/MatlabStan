@@ -45,13 +45,13 @@
 %              User-supplied initial values can either be supplied as a
 %              string pointing to a Rdump file, or as a struct, with fields
 %              corresponding to parameters to be initialized.
+%              Default initializes parameters uniformly from (-2,+2)
 %     seed   - scalar, optional
 %              Random number generator seed. Default = round(sum(100*clock))
 %              Note that this seed is different from Matlab's RNG seed, and
 %              is only used to sample from Stan models. For multiple chains
 %              each chain is seeded according to a deterministic function
 %              of the provided seed to avoid dependency.
-%              Default initializes parameters uniformly from (-2,+2)
 %     algorithm - string, optional
 %              If method = 'sample', {'NUTS','HMC'}, default = 'NUTS'
 %              If method = 'optimize', {'LBFGS', 'BFGS', 'NEWTON'}

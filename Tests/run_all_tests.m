@@ -6,6 +6,9 @@
 % However, it seems that occasionally, some older versions of Matlab will 
 % produce errors that are actually not relevant under normal circumstances.
 % This script introduces some pauses that prevent these errors.
+%
+% Individual tests can be run by calling 'runtests TestCase' where TestCase
+% is the name of one of the particular tests.
 
 t = 30;
 runtests TestBasicArray;
