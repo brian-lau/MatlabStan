@@ -66,7 +66,12 @@ classdef TestStanModel < TestCase
              'file_overwrite',true,...
              'refresh',5000);
          
-         if mstan.check_ver(s.stan_version,'2.6.0')
+         if mstan.check_ver(s.stan_version,'2.6.2')
+             assertEqual(s.model_path,...
+                 model_file);
+             assertEqual(s.file,'bernoulli.stan');
+             assertEqual(s.model_name,'bernoulli');
+         elseif mstan.check_ver(s.stan_version,'2.6.0')
              assertEqual(s.model_path,...
                  model_file);
              assertEqual(s.file,'test_model.stan');
@@ -98,12 +103,10 @@ classdef TestStanModel < TestCase
       function testSet(self)
          s = StanModel();
          
-         if mstan.check_ver(s.stan_version,'2.6.0')
-<<<<<<< HEAD
+         if mstan.check_ver(s.stan_version,'2.6.1')
             model_file = fullfile(mstan.stan_home,'examples','bernoulli','bernoulli.stan');
-=======
+         elseif mstan.check_ver(s.stan_version,'2.6.0')
             model_file = fullfile(mstan.stan_home,'src','test','test-models','test_model.stan');
->>>>>>> 27d1d4cccd512c7a75d5dbb683ad72c85fb0a75f
          elseif mstan.check_ver(s.stan_version,'2.5.0')
             model_file = fullfile(mstan.stan_home,'stan','example-models','basic_estimators','bernoulli.stan');
          elseif mstan.check_ver(s.stan_version,'2.4.0')
@@ -129,10 +132,16 @@ classdef TestStanModel < TestCase
              'file_overwrite',true,...
              'refresh',5000);
          
-         if mstan.check_ver(s.stan_version,'2.6.0')
+         if mstan.check_ver(s.stan_version,'2.6.2')
+             assertEqual(s.model_path,...
+                 model_file);
+             assertEqual(s.file,'bernoulli.stan');
+             assertEqual(s.model_name,'bernoulli');
+         elseif mstan.check_ver(s.stan_version,'2.6.0')
              assertEqual(s.model_path,...
                  model_file);
              assertEqual(s.file,'test_model.stan');
+             assertEqual(s.model_name,'test_model');
          else
              assertEqual(s.model_path,...
                  model_file);
