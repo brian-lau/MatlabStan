@@ -26,14 +26,12 @@ classdef mcmc < handle
       rng_state % This is for the Matlab RNG
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.2.0';
+      version = '0.3.0';
    end
    
    methods
       function self = mcmc(seed)
          if nargin == 1
-            %rng(seed);
-            %self.rng_state = rng;
             self.rng_state = seed;
          else
             self.rng_state = rng;
@@ -130,6 +128,14 @@ classdef mcmc < handle
                   rethrow(err);
                end
             end
+         end
+      end
+      
+      function out = remove(self,chain_id)
+         fn = fieldnames(self.samples(chain_id));
+         for i = 1:numel(fn)
+            self.warmup(chain_id).(fn{i}) = [];
+            self.samples(chain_id).(fn{i}) = [];
          end
       end
       

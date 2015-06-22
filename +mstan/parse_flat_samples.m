@@ -1,4 +1,3 @@
-
 % Convert CmdStan parameters and samples as returned in csv file into matrices
 % of correct dimensionality
 function [varNames,varDims,varSamples] = parse_flat_samples(flatNames,flatSamples)

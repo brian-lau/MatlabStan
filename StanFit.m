@@ -1,14 +1,23 @@
+% STANFIT - Class defining the fit of a Stan model
+%
+%     obj = StanFit(varargin);
+%
+%     There is no need for users to create instances of StanFit objects.
+%     StanFit instances are returned when calling the 'stan' function, or
+%     when invoking the 'sampling' method of a StanModel instance.
+%
+%     All inputs are passed in using name/value pairs. The name is a string
+%     followed by the value (described below).
+%     The order of the pairs does not matter, nor does the case.
+
 % TODO: 
 % x clean up and generalize for both sampling and optim
-% x stop() 
-% x verbose() 
-% x account for thinning
+%   o separate out optim from mcmc object?
 % o merge()
 % o auto merge when handles equal?
 % o should be able to construct stanfit object from just csv files
 % o some way to periodically read or peek at incoming samples?
 
-% Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
 classdef StanFit < handle
    properties
       model     % StanModel object
@@ -24,15 +33,14 @@ classdef StanFit < handle
       sim
    end
    properties(SetAccess = private, Hidden = true)
+      pos_ % cache file positions
       sim_
-      warmup_
-      iter_
    end
    events
       exit
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.6.0';
+      version = '0.8.0';
    end
    
    methods
@@ -72,6 +80,8 @@ classdef StanFit < handle
             self.exit_value = nan(size(self.output_file));
             self.loaded = nan(size(self.output_file));
          end
+         
+         self.pos_ = nan(size(self.output_file));
 
          if numel(self.processes) ~= numel(self.output_file)
             error('StanFit:constructor:InputFormat',...
@@ -79,7 +89,7 @@ classdef StanFit < handle
          end
          
          if isprop(self.model,'seed')
-           self.sim_ = mcmc(self.model.seed);
+            self.sim_ = mcmc(self.model.seed);
          else
             self.sim_ = mcmc();
          end
@@ -107,6 +117,23 @@ classdef StanFit < handle
          end
       end
       
+      function check(self)
+         % Print status to screen for each running chain.
+         if ~isempty(self.processes)
+            if any([self.processes.running])
+               for i = 1:numel(self.processes)
+                  if self.processes(i).running;
+                     fprintf('%s \t %s\n',self.processes(i).id,self.processes(i).stdout{end});
+                  end
+               end
+            else
+               fprintf('All Stan processes finished.\n');
+            end
+         else
+            fprintf('Nothing to check.\n');
+         end
+      end
+      
       function sim = get.sim(self)
          if exit_with_data(self)
             sim = self.sim_;
@@ -116,7 +143,7 @@ classdef StanFit < handle
       end
       
       function out = extract(self,varargin)         
-         if ~exit_with_data(self)
+         if ~exit_with_data(self) && all(isnan(self.pos_))
             out = [];
             return;
          end
@@ -144,7 +171,50 @@ classdef StanFit < handle
          end
       end
       
+      function peek(self)
+         if exit_with_data(self)
+            fprintf('Nothing to peek at, Stan is already done.');
+            return;
+         end
+         
+         if strcmp(self.model.method,'optimize')
+            fprintf('Nothing to peek at, optimizing');
+            return;
+         elseif strcmp(self.model.method,'sample')
+            for ind = 1:numel(self.output_file)
+               [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
+                  self.output_file{ind},self.model.inc_warmup);
+               
+               self.pos_(ind) = pos;
+               if isempty(flatSamples)
+                  disp('Stan hasn''t saved any samples for this chain yet');
+               else
+                  [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
+                  
+                  % Account for thinning
+                  if self.model.inc_warmup
+                     exp_warmup = ceil(self.model.warmup/self.model.thin);
+                  else
+                     exp_warmup = 0;
+                  end
+                  exp_iter = ceil(self.model.iter/self.model.thin);
+                  
+                  % FIXME, currently remove existing chain
+                  try
+                     self.sim_.remove(ind);
+                  catch
+                  end
+                  
+                  % Append to mcmc object
+                  self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
+                  self.sim_.user_data{ind} = hdr;
+               end
+            end
+         end
+      end
+      
       function process_exit_success(self,src)
+         % FIXME is there ever a possibility that we get simultaneous notifications
          ind = strcmp(self.output_file,fullfile(self.model.working_dir,src.id));
          self.exit_value(ind) = src.exitValue;
          if self.verbose
@@ -156,7 +226,7 @@ classdef StanFit < handle
                [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
                   self.output_file{ind},true);
             elseif strcmp(self.model.method,'sample')
-               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+               [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
@@ -174,30 +244,42 @@ classdef StanFit < handle
                exp_iter = ceil(self.model.iter/self.model.thin);
             end
             
+            % FIXME, currently remove existing chain
+            try
+               self.sim_.remove(ind);
+            catch
+            end
+            
             % Append to mcmc object
             self.sim_.append(samples,names,exp_warmup,exp_iter,ind);
             self.sim_.user_data{ind} = hdr;
          end
 
-         %self.flat_pars = flatNames;
          if self.verbose
             fprintf('stan finished processing %s\n',src.id);
          end
          self.loaded(ind) = true;
          if nansum(self.loaded) == numel(self.loaded)
-            if any(arrayfun(@(x) isempty(x.lp__),self.iter_))
-               % FIXME: not a good check, eventually we may not keep lp__
-               warning('Failure to load chains correctly');
-            end
+            %if any(arrayfun(@(x) isempty(x.lp__),self.iter_))
+            %   % FIXME: not a good check, eventually we may not keep lp__
+            %   warning('Failure to load chains correctly');
+            %end
             notify(self,'exit');
          end
       end
       
       function process_exit_failure(self,src)
          % TODO, check against Stan errors, and print to screen
+         % Stan error codes: https://github.com/stan-dev/stan/blob/develop/src/stan/gm/error_codes.hpp
+         % OK = 0,
+         % USAGE = 64,
+         % DATAERR = 65,
+         % NOINPUT = 66,
+         % SOFTWARE = 70,
+         % CONFIG = 78
          warning('Stan seems to have exited badly.');
       end
-            
+      
       function str = print(self,varargin)
          % TODO: 
          % o this should allow multiple files and regexp.
@@ -266,6 +348,7 @@ classdef StanFit < handle
          if ~isempty(self.processes)%is_running(self) % stan called
             % FIXME, what if callback fails??
             while nansum(self.loaded) ~= numel(self.loaded)
+               % pause() in some Matlab versions leaks memory
                java.lang.Thread.sleep(0.05*1000);
             end
          end
@@ -281,12 +364,15 @@ classdef StanFit < handle
       function bool = exit_with_data(self)
          bool = false;
          if ~isempty(self.processes) % stan called
-            if is_running(self) % not finished
+            if is_running(self) && ~all(isnan(self.pos_))
+               % not finished, but peek has been called for partial samples
+            elseif is_running(self) && all(isnan(self.pos_)) % not finished
                fprintf('Stan is still working. You can either:\n');
-               fprintf('  Come back later, or\n');
-               fprintf('  Attach a listener to the StanFit object.\n');
+               fprintf('  1) Use the peek method to get partial samples\n');
+               fprintf('  2) Come back later, or\n');
+               fprintf('  3) Attach a listener to the StanFit object.\n');
             elseif all((self.exit_value == 0) | (self.exit_value == 143)) % finished cleanly
-            % TODO: check that SIGTERM (143) is the same on windows/linux?
+               % TODO: check that SIGTERM (143) is the same on windows/linux?
                bool = true;
             else % finished badly
                fprintf('Stan seems to have encountered a problem.\n');
