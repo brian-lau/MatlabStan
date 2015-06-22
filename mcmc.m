@@ -45,7 +45,7 @@ classdef mcmc < handle
          fn = fieldnames(self.(s));         
          for i = 1:numel(self.(s))
             for j = 1:length(fn)
-               temp{j} = length(self.(s)(i).(fn{i}));
+               temp{j} = length(self.(s)(i).(fn{j}));
             end
             n(i) = cell2struct(temp,self.names,2);
          end
@@ -56,7 +56,7 @@ classdef mcmc < handle
          fn = fieldnames(self.(s));         
          for i = 1:numel(self.(s))
             for j = 1:length(fn)
-               temp{j} = length(self.(s)(i).(fn{i}));
+               temp{j} = length(self.(s)(i).(fn{j}));
             end
             n(i) = cell2struct(temp,self.names,2);
          end
