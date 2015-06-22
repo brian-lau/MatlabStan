@@ -50,7 +50,8 @@ classdef TestBernoulli < TestCase
          model = self.model;
          assertEqual(model.model_name,'bernoulli');
          assertEqual(model.model_code,self.code);
-         assertTrue(exist('bernoulli.cpp','file')==2,'CPP file not generated');
+         assertTrue((exist('bernoulli.cpp','file')==2)||...
+            (exist('bernoulli.hpp','file')==2),'CPP file not generated');
          if ispc
             [~,fa] = fileattrib('bernoulli.exe');
          else
