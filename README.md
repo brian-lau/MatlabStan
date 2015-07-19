@@ -1,6 +1,6 @@
 # MatlabStan
 <a href="http://mc-stan.org">
-<img src="https://github.com/stan-dev/stan/blob/master/logos/stanlogo-main.png?raw=true" alt="Stan Logo"/>
+<img src="https://raw.githubusercontent.com/stan-dev/logos/master/logo.png?raw=true" width=50 alt="Stan Logo"/>
 </a>
 A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference.
 
