@@ -62,6 +62,9 @@ classdef TestMCMC < TestCase
          chain_ind = 2;
          m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);
          self.validate_data(m,d,chain_ind);
+         
+         assertTrue(isprop(m,'n_warmup'));
+         assertTrue(isprop(m,'n_samples'));
       end
       function test_new_chain2(self)
          d = self.fake_chain_data();
@@ -85,6 +88,9 @@ classdef TestMCMC < TestCase
          % Now add the first chain
          m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);
          self.validate_data(m,d,chain_ind);
+         
+         assertTrue(isprop(m,'n_warmup'));
+         assertTrue(isprop(m,'n_samples'));
       end
       function test_append_chain1(self)
          d = self.fake_chain_data();
@@ -99,6 +105,9 @@ classdef TestMCMC < TestCase
          % append to the same chain
          m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);
          self.validate_data2(m,d,chain_ind);
+                  
+         assertTrue(isprop(m,'n_warmup'));
+         assertTrue(isprop(m,'n_samples'));
       end
       function test_append_chain2(self)
          d = self.fake_chain_data();
@@ -123,6 +132,9 @@ classdef TestMCMC < TestCase
          chain_ind = 1;
          m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);
          self.validate_data2(m,d,chain_ind);
+
+         assertTrue(isprop(m,'n_warmup'));
+         assertTrue(isprop(m,'n_samples'));
       end
       % multidimensional parameters
       function test_nd_array(self)
@@ -148,6 +160,9 @@ classdef TestMCMC < TestCase
          chain_ind = 1;
          m.append(d.C,d.names,d.n_warmup,d.n_iter,chain_ind);
          self.validate_data2(m,d,chain_ind);
+
+         assertTrue(isprop(m,'n_warmup'));
+         assertTrue(isprop(m,'n_samples'));
       end
       
       function tearDown(self)

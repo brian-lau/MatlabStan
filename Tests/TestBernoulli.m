@@ -50,11 +50,8 @@ classdef TestBernoulli < TestCase
          model = self.model;
          assertEqual(model.model_name,'bernoulli');
          assertEqual(model.model_code,self.code);
-         if mstan.check_ver(model.stan_version,'2.6.0')
-             assertTrue(exist('bernoulli.hpp','file')==2,'HPP file not generated');
-         else
-             assertTrue(exist('bernoulli.cpp','file')==2,'CPP file not generated');
-         end
+         assertTrue((exist('bernoulli.cpp','file')==2)||...
+            (exist('bernoulli.hpp','file')==2),'CPP file not generated');
          if ispc
             [~,fa] = fileattrib('bernoulli.exe');
          else
