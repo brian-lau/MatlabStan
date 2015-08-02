@@ -26,7 +26,7 @@ classdef mcmc < handle
       rng_state % This is for the Matlab RNG
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.3.0';
+      version = '0.3.1';
    end
    
    methods
