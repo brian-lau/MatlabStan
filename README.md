@@ -51,6 +51,8 @@ You may be able to find a solution in the [wiki](https://github.com/brian-lau/Ma
 
 Contributions
 --------------------------------
-Copyright (c) 2015 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
+MatlabStan Copyright (c) 2015 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
+
+[PSIS package](https://github.com/avehtari/MatlabPSIS) Copyright (c) 2015 Aki Vehtari, [GPL-3](http://www.gnu.org/licenses/gpl-3.0.en.html)
 
 Please feel free to [fork](https://github.com/brian-lau/MatlabStan/fork) and contribute!
