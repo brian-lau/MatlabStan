@@ -2,6 +2,7 @@
 % 
 % Based on R code in:
 % Vehtari & Gelman (2014). WAIC and cross-validation in Stan
+% http://www.stat.columbia.edu/~gelman/research/unpublished/waic_stan.pdf
 %
 
 function [total,se,pointwise] = waic(log_lik)

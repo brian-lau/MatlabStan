@@ -66,3 +66,9 @@ end
 %% Compare the models
 loodiff=loos-loos2;
 fprintf('elpd_diff = %.1f, SE(elpd_diff) = %.1f\n',sum(loodiff),std(loodiff)*sqrt(n))
+
+%% For this example, WAIC results are same as LOO results up to accuracy of at least one decimal
+waic1 = mstan.waic(s.log_lik);
+waic2 = mstan.waic(s2.log_lik);
+fprintf('elpd_waic_diff = %.1f\n',waic1.elpd_waic-waic2.elpd_waic)
+
