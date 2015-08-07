@@ -1,4 +1,4 @@
-# MatlabStan
+# [MatlabStan](https://github.com/brian-lau/MatlabStan)
 <a href="http://mc-stan.org">
 <img src="https://raw.githubusercontent.com/stan-dev/logos/master/logo.png?raw=true" width=50 alt="Stan Logo"/>
 </a>
@@ -51,7 +51,7 @@ You may be able to find a solution in the [wiki](https://github.com/brian-lau/Ma
 
 Contributions
 --------------------------------
-MatlabStan Copyright (c) 2015 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), see [LICENSE](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
+MatlabStan Copyright (c) 2015 Brian Lau [brian.lau@upmc.fr](mailto:brian.lau@upmc.fr), [BSD-3](https://github.com/brian-lau/MatlabStan/blob/master/LICENSE.txt)
 
 [PSIS package](https://github.com/avehtari/MatlabPSIS) Copyright (c) 2015 Aki Vehtari, [GPL-3](http://www.gnu.org/licenses/gpl-3.0.en.html)
 
