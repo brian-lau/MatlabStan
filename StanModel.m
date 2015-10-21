@@ -675,10 +675,14 @@ classdef StanModel < handle
       end
       
       function set.data(self,d)
-         if isstruct(d) || isa(d,'containers.Map')
+         if isstruct(d) || isa(d,'containers.Map') || isa(d,'RData')
             % FIXME: how to contruct filename?
             fname = fullfile(self.working_dir,'temp.data.R');
-            mstan.rdump(fname,d);
+            if isa(d,'RData')
+               rdump(d,fname);
+            else
+               mstan.rdump(fname,d);
+            end               
             self.data = d;
             self.params.data.file = fname;
          elseif ischar(d)
