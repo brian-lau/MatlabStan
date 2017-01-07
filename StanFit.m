@@ -122,7 +122,7 @@ classdef StanFit < handle
          if ~isempty(self.processes)
             if any([self.processes.running])
                for i = 1:numel(self.processes)
-                  if self.processes(i).running;
+                  if self.processes(i).running
                      fprintf('%s \t %s\n',self.processes(i).id,self.processes(i).stdout{end});
                   end
                end
@@ -228,12 +228,22 @@ classdef StanFit < handle
             elseif strcmp(self.model.method,'sample')
                [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
+            elseif strcmp(self.model.method,'variational')
+               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+                  self.output_file{ind},true);
+               % lp__ is a legacy feature that is no longer used
+               temp = strcmp(flatNames,'lp__');
+               flatNames(temp) = [];
+               flatSamples(:,temp) = [];
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
             
             if strcmp(self.model.method,'optimize')
                exp_warmup = 0;
                exp_iter = 1;
+            elseif strcmp(self.model.method,'variational')
+               exp_warmup = 0;
+               exp_iter = size(flatSamples,1); % FIXME
             else
                % Account for thinning
                if self.model.inc_warmup

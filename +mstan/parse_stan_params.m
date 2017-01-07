@@ -4,7 +4,7 @@
 function str = parse_stan_params(s,root)
    import mstan.parse_stan_params
 
-   branch = {'sample' 'optimize' 'diagnose' 'static' 'nuts' 'nesterov' 'bfgs' 'lbfgs'};
+   branch = {'sample' 'optimize' 'variational' 'diagnose' 'static' 'nuts' 'nesterov' 'bfgs' 'lbfgs'};
    if nargin == 2
       branch = branch(~strcmp(branch,root));
       fn = fieldnames(s);

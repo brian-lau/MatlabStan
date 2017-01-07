@@ -15,7 +15,7 @@
 %     file   - string, optional
 %              The string passed is the filename containing the Stan model.
 %     method - string, optional
-%              {'sample' 'optimize'}, default = 'sample'
+%              {'sample' 'optimize' 'variational'}, default = 'sample'
 %     model_code - string, optional
 %              String, or cell array of strings containing Stan model.
 %              Ignored if 'file' is passed in.
@@ -133,10 +133,13 @@ if ~isempty(p.Results.algorithm)
    model.algorithm = p.Results.algorithm;
 end
 
-if strcmp(model.method,'sample');
-   fit = model.sampling(p.Unmatched);
-elseif strcmp(model.method,'optimize');
-   fit = model.optimizing(p.Unmatched);
+switch lower(model.method)
+   case 'sample'
+      fit = model.sampling(p.Unmatched);
+   case 'optimize'
+      fit = model.optimizing(p.Unmatched);
+   case 'variational'
+      fit = model.vb(p.Unmatched);
 end
 
 if fit.model == model

@@ -15,7 +15,7 @@
 %     file   - string, optional
 %              The string passed is the filename containing the Stan model.
 %     method - string, optional
-%              {'sample' 'optimize'}, default = 'sample'
+%              {'sample' 'optimize' 'variational'}, default = 'sample'
 %     model_code - string, optional
 %              String, or cell array of strings containing Stan model.
 %              Ignored if 'file' is passed in.
@@ -172,7 +172,7 @@ classdef StanModel < handle
          p.addParamValue('model_code',{});
          p.addParamValue('working_dir',pwd);
          p.addParamValue('method','sample',@(x) any(strcmp(x,...
-            {'sample' 'optimize' 'diagnose'})));
+            {'sample' 'optimize' 'variational' 'diagnose'})));
          p.addParamValue('chains',4);
          p.addParamValue('sample_file','',@ischar);
          p.addParamValue('verbose',false,@islogical);
@@ -641,6 +641,8 @@ classdef StanModel < handle
             end
          elseif strcmp(self.method,'optimize')
             control = [];
+         elseif strcmp(self.method,'variational')
+            control = [];
          end
       end
       
@@ -701,6 +703,7 @@ classdef StanModel < handle
             
       function command = get.command(self)
          command = {[self.model_binary_path ' ']};
+         %keyboard
          str = mstan.parse_stan_params(self.params,self.method);
          command = cat(1,command,str);
       end
@@ -769,6 +772,39 @@ classdef StanModel < handle
             fprintf('Stan is optimizing ...\n');
          end
          
+         p = processManager('id',self.sample_file,...
+                            'command',sprintf('%s',self.command{:}),...
+                            'workingDir',self.working_dir,...
+                            'wrap',100,...
+                            'keepStdout',true,...
+                            'pollInterval',1,...
+                            'printStdout',self.verbose,...
+                            'autoStart',false);
+
+         fit = StanFit('model',copy(self),'processes',p,...
+                       'output_file',{fullfile(self.working_dir,self.sample_file)},...
+                       'verbose',self.verbose);
+         p.start();
+      end
+      
+      function fit = vb(self,varargin)
+         if nargout == 0
+            error('stan:vb:OutputFormat',...
+               'Need to assign the fit to a variable');
+         end
+         self.set(varargin{:});
+         self.method = 'variational';
+         if ~self.is_compiled
+            if self.verbose
+               fprintf('We have to compile the model first...\n');
+            end
+            self.compile();
+         end
+         
+         if self.verbose
+            fprintf('Stan is performing variational inference ...\n');
+         end
+         %keyboard
          p = processManager('id',self.sample_file,...
                             'command',sprintf('%s',self.command{:}),...
                             'workingDir',self.working_dir,...
