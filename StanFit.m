@@ -292,11 +292,9 @@ classdef StanFit < handle
       
       function str = print(self,varargin)
          % TODO: 
-         % o this should allow multiple files and regexp.
-         % x this does not work when method=optim, should shortcut
-         %       
-         % note that passing regexp through in the command does not work,
-         % need to implment search in matlab
+         % o this should allow regexp.
+         %   passing regexp through in the command does not work,
+         %   need to implment search in matlab
          % TODO: allow print parameters
          % FIXME: ugh, if multiple fits were done with same output names
          % print will just give the results from the last one. should
@@ -322,11 +320,17 @@ classdef StanFit < handle
             file = p.Results.file;
          end
          
+         if mstan.check_ver(self.model.stan_version,'2.8.0')
+            command = 'stansummary';
+         else
+            command = 'print';
+         end
+         
          if ischar(file)
-            command = [self.model.stan_home filesep 'bin/print --sig_figs='...
+            command = [self.model.stan_home filesep 'bin' filesep command ' --sig_figs='...
                num2str(p.Results.sig_figs) ' ' file];
          elseif iscell(file)
-            command = [self.model.stan_home filesep 'bin/print --sig_figs='...
+            command = [self.model.stan_home filesep 'bin' filesep command ' --sig_figs='...
                num2str(p.Results.sig_figs) ' ' sprintf('%s ',file{:})];
          end
          p = processManager('command',command,...

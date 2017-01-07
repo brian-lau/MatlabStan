@@ -166,6 +166,7 @@ classdef mcmc < handle
             end
          end
 
+         % FIXME for INCLUDE WARMUP
          if p.Results.permuted
             % TODO: ability to return permuted samples when we have warmup?
             out = struct;

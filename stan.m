@@ -54,8 +54,8 @@
 %              of the provided seed to avoid dependency.
 %     algorithm - string, optional
 %              If method = 'sample', {'NUTS','HMC'}, default = 'NUTS'
-%              If method = 'optimize', {'LBFGS', 'BFGS', 'NEWTON'}
-%                          default = 'LBFGS'
+%              If method = 'optimize', {'LBFGS', 'BFGS', 'NEWTON'}, default = 'LBFGS'
+%              If method = 'variational', {'MEANFIELD','FULLRANK'}, default = 'MEANFIELD'
 %     sample_file - string, optional
 %              Name of file(s) where samples for all parameters are saved.
 %              Default = 'output.csv'.
@@ -94,12 +94,12 @@
 function fit = stan(varargin)
 
 p = inputParser;
-p.KeepUnmatched= true;
+p.KeepUnmatched = true;
 p.FunctionName = 'stan';
 p.addParamValue('fit',[],@(x) isa(x,'StanFit') || isa(x,'StanModel'));
 p.addParamValue('method','sample');
 p.addParamValue('iter',2000,@(x) isscalar(x) && (x>0));
-p.addParamValue('warmup',[],@(x) isscalar(x) && (x>0));
+p.addParamValue('warmup',[],@(x) isscalar(x) && (x>=0));
 p.addParamValue('refresh',[],@(x) isscalar(x) && (x>0));
 p.addParamValue('algorithm','');
 p.parse(varargin{:});
@@ -138,7 +138,7 @@ switch lower(model.method)
       fit = model.sampling(p.Unmatched);
    case 'optimize'
       fit = model.optimizing(p.Unmatched);
-   case 'variational'
+   case {'variational' 'vb'}
       fit = model.vb(p.Unmatched);
 end
 

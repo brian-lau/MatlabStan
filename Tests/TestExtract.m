@@ -40,7 +40,9 @@ classdef TestExtract < TestCase
          lp__ = ss.lp__;
          
          ver = fit.model.stan_version;
-         if mstan.check_ver(ver,'2.2.0') 
+         if mstan.check_ver(ver,'2.15.0')
+            assertEqual(fieldnames(ss),{'lp__' 'accept_stat__' 'stepsize__' 'treedepth__' 'n_leapfrog__' 'divergent__' 'energy__' 'alpha' 'beta'}');
+         elseif mstan.check_ver(ver,'2.2.0')
             assertEqual(fieldnames(ss),{'lp__' 'accept_stat__' 'stepsize__' 'treedepth__' 'n_leapfrog__' 'n_divergent__' 'alpha' 'beta'}');
          elseif mstan.check_ver(ver,'2.1.0')
             assertEqual(fieldnames(ss),{'lp__' 'accept_stat__' 'stepsize__' 'treedepth__' 'n_divergent__' 'alpha' 'beta'}');
