@@ -4,7 +4,7 @@
 </a>
 A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference.
 
-For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at [http://mc-stan.org/](http://mc-stan.org/).
+For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at [http://mc-stan.org/](http://mc-stan.org/documentation/).
 
 ## Installation
 Details can be found in the [Getting started](https://github.com/brian-lau/MatlabStan/wiki/Getting-Started) page of the wiki.
@@ -47,7 +47,7 @@ mean(eta)
 
 ```
 ## Need help?
-You may be able to find a solution in the [wiki](https://github.com/brian-lau/MatlabStan/wiki/). Otherwise, open an [issue](https://github.com/brian-lau/MatlabProcessManager/issues).
+You may be able to find a solution in the [wiki](https://github.com/brian-lau/MatlabStan/wiki/). Otherwise, open an [issue](https://github.com/brian-lau/MatlabStan/issues).
 
 Contributions
 --------------------------------
