@@ -15,7 +15,7 @@
 %     file   - string, optional
 %              The string passed is the filename containing the Stan model.
 %     method - string, optional
-%              {'sample' 'optimize'}, default = 'sample'
+%              {'sample' 'optimize' 'variational'}, default = 'sample'
 %     model_code - string, optional
 %              String, or cell array of strings containing Stan model.
 %              Ignored if 'file' is passed in.
@@ -54,8 +54,8 @@
 %              of the provided seed to avoid dependency.
 %     algorithm - string, optional
 %              If method = 'sample', {'NUTS','HMC'}, default = 'NUTS'
-%              If method = 'optimize', {'LBFGS', 'BFGS', 'NEWTON'}
-%                          default = 'LBFGS'
+%              If method = 'optimize', {'LBFGS', 'BFGS', 'NEWTON'}, default = 'LBFGS'
+%              If method = 'variational', {'MEANFIELD','FULLRANK'}, default = 'MEANFIELD'
 %     sample_file - string, optional
 %              Name of file(s) where samples for all parameters are saved.
 %              Default = 'output.csv'.
@@ -94,12 +94,12 @@
 function fit = stan(varargin)
 
 p = inputParser;
-p.KeepUnmatched= true;
+p.KeepUnmatched = true;
 p.FunctionName = 'stan';
 p.addParamValue('fit',[],@(x) isa(x,'StanFit') || isa(x,'StanModel'));
 p.addParamValue('method','sample');
 p.addParamValue('iter',2000,@(x) isscalar(x) && (x>0));
-p.addParamValue('warmup',[],@(x) isscalar(x) && (x>0));
+p.addParamValue('warmup',[],@(x) isscalar(x) && (x>=0));
 p.addParamValue('refresh',[],@(x) isscalar(x) && (x>0));
 p.addParamValue('algorithm','');
 p.parse(varargin{:});
@@ -133,10 +133,13 @@ if ~isempty(p.Results.algorithm)
    model.algorithm = p.Results.algorithm;
 end
 
-if strcmp(model.method,'sample');
-   fit = model.sampling(p.Unmatched);
-elseif strcmp(model.method,'optimize');
-   fit = model.optimizing(p.Unmatched);
+switch lower(model.method)
+   case 'sample'
+      fit = model.sampling(p.Unmatched);
+   case 'optimize'
+      fit = model.optimizing(p.Unmatched);
+   case {'variational' 'vb'}
+      fit = model.vb(p.Unmatched);
 end
 
 if fit.model == model

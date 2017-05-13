@@ -15,7 +15,7 @@
 %     file   - string, optional
 %              The string passed is the filename containing the Stan model.
 %     method - string, optional
-%              {'sample' 'optimize'}, default = 'sample'
+%              {'sample' 'optimize' 'variational'}, default = 'sample'
 %     model_code - string, optional
 %              String, or cell array of strings containing Stan model.
 %              Ignored if 'file' is passed in.
@@ -50,6 +50,7 @@
 %     algorithm - string, optional
 %              If method = 'sample', {'NUTS','HMC'}, default = 'NUTS'
 %              If method = 'optimize', {'BFGS','NESTEROV' 'NEWTON'}, default = 'BFGS'
+%              If method = 'variational', {'MEANFIELD','FULLRANK'}, default = 'MEANFIELD'
 %     sample_file - string, optional
 %              Name of file(s) where samples for all parameters are saved.
 %              Default = 'output.csv'.
@@ -172,7 +173,7 @@ classdef StanModel < handle
          p.addParamValue('model_code',{});
          p.addParamValue('working_dir',pwd);
          p.addParamValue('method','sample',@(x) any(strcmp(x,...
-            {'sample' 'optimize' 'diagnose'})));
+            {'sample' 'optimize' 'variational' 'diagnose'})));
          p.addParamValue('chains',4);
          p.addParamValue('sample_file','',@ischar);
          p.addParamValue('verbose',false,@islogical);
@@ -188,6 +189,7 @@ classdef StanModel < handle
                'processManager (https://github.com/brian-lau/MatlabProcessManager) is required');
          end
 
+         % TODO: move this into stan_version
          count = 0;
          while 1 % FIXME, occasionally stanc does not return version?
             try
@@ -308,6 +310,7 @@ classdef StanModel < handle
                   && exist(fullfile(fa.Name,'bin'),'dir')
                self.stan_home = fa.Name;
             else
+               % TODO make this message more informative
                error('StanModel:stan_home:InputFormat',...
                   'Does not look like a proper stan setup');
             end
@@ -566,32 +569,43 @@ classdef StanModel < handle
       
       function set.algorithm(self,algorithm)
          algorithm = lower(algorithm);
-         if strcmp(self.method,'sample')
-            if strcmp(algorithm,'hmc')
-               algorithm = 'static';
-            end
-            if any(strcmp(self.validators.sample.hmc.engine,algorithm))
-               self.params.sample.hmc.engine = algorithm;
-            else
-               error('StanModel:algorithm:InputFormat',...
-                  'Unknown algorithm for sampler');
-            end
-         elseif strcmp(self.method,'optimize')
-            if any(strcmp(self.validators.optimize.algorithm,algorithm))
-               self.params.optimize.algorithm = algorithm;
-            else
-               error('StanModel:algorithm:InputFormat',...
-                  'Unknown algorithm for optimizer');
-            end
+         switch lower(self.method)
+            case 'optimize'
+               if any(strcmp(self.validators.optimize.algorithm,algorithm))
+                  self.params.optimize.algorithm = algorithm;
+               else
+                  error('StanModel:algorithm:InputFormat',...
+                     'Unknown algorithm for optimizer');
+               end
+            case 'sample'
+               if strcmp(algorithm,'hmc')
+                  algorithm = 'static';
+               end
+               if any(strcmp(self.validators.sample.hmc.engine,algorithm))
+                  self.params.sample.hmc.engine = algorithm;
+               else
+                  error('StanModel:algorithm:InputFormat',...
+                     'Unknown algorithm for sampler');
+               end
+            case 'variational'
+               if any(strcmp(self.validators.variational.algorithm,algorithm))
+                  self.params.variational.algorithm = algorithm;
+               else
+                  error('StanModel:algorithm:InputFormat',...
+                     'Unknown algorithm for variational inference');
+               end
          end
       end
       
       function algorithm = get.algorithm(self)
-         if strcmp(self.method,'sample')
-            algorithm = [self.params.sample.algorithm ':' ...
-               self.params.sample.hmc.engine];
-         elseif strcmp(self.method,'optimize')
-            algorithm = self.params.optimize.algorithm;
+         switch lower(self.method)
+            case 'optimize'
+               algorithm = self.params.optimize.algorithm;
+            case 'sample'
+               algorithm = [self.params.sample.algorithm ':' ...
+                  self.params.sample.hmc.engine];
+            case 'variational'
+               algorithm = self.params.variational.algorithm;
          end
       end
       
@@ -632,15 +646,18 @@ classdef StanModel < handle
       end
       
       function control = get.control(self)
-         if strcmp(self.method,'sample')
-            control = self.params.sample.adapt;
-            if strncmp(self.algorithm,'hmc',3)
-               control.metric = self.params.sample.hmc.metric;
-               control.stepsize = self.params.sample.hmc.stepsize;
-               control.stepsize_jitter = self.params.sample.hmc.stepsize_jitter;
-            end
-         elseif strcmp(self.method,'optimize')
-            control = [];
+         switch lower(self.method)
+            case 'optimize'
+               control = [];
+            case 'sample'
+               control = self.params.sample.adapt;
+               if strncmp(self.algorithm,'hmc',3)
+                  control.metric = self.params.sample.hmc.metric;
+                  control.stepsize = self.params.sample.hmc.stepsize;
+                  control.stepsize_jitter = self.params.sample.hmc.stepsize_jitter;
+               end
+            case 'variational'
+               control = [];
          end
       end
       
@@ -707,7 +724,7 @@ classdef StanModel < handle
       
       function fit = sampling(self,varargin)
          if nargout == 0
-            error('stan:sampling:OutputFormat',...
+            error('StanModel:sampling:OutputFormat',...
                'Need to assign the fit to a variable');
          end
          self.set(varargin{:});
@@ -753,7 +770,7 @@ classdef StanModel < handle
       
       function fit = optimizing(self,varargin)
          if nargout == 0
-            error('stan:optimizing:OutputFormat',...
+            error('StanModel:optimizing:OutputFormat',...
                'Need to assign the fit to a variable');
          end
          self.set(varargin{:});
@@ -767,6 +784,39 @@ classdef StanModel < handle
          
          if self.verbose
             fprintf('Stan is optimizing ...\n');
+         end
+         
+         p = processManager('id',self.sample_file,...
+                            'command',sprintf('%s',self.command{:}),...
+                            'workingDir',self.working_dir,...
+                            'wrap',100,...
+                            'keepStdout',true,...
+                            'pollInterval',1,...
+                            'printStdout',self.verbose,...
+                            'autoStart',false);
+
+         fit = StanFit('model',copy(self),'processes',p,...
+                       'output_file',{fullfile(self.working_dir,self.sample_file)},...
+                       'verbose',self.verbose);
+         p.start();
+      end
+      
+      function fit = vb(self,varargin)
+         if nargout == 0
+            error('StanModel:vb:OutputFormat',...
+               'Need to assign the fit to a variable');
+         end
+         self.set(varargin{:});
+         self.method = 'variational';
+         if ~self.is_compiled
+            if self.verbose
+               fprintf('We have to compile the model first...\n');
+            end
+            self.compile();
+         end
+         
+         if self.verbose
+            fprintf('Stan is performing variational inference ...\n');
          end
          
          p = processManager('id',self.sample_file,...

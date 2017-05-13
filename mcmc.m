@@ -166,13 +166,14 @@ classdef mcmc < handle
             end
          end
 
+         % FIXME for INCLUDE WARMUP
          if p.Results.permuted
             % TODO: ability to return permuted samples when we have warmup?
             out = struct;
             for i = 1:numel(names)
                temp = cat(1,self.samples.(names{i})); %VERTCAT???
                sz = size(temp);
-               temp = temp(self.permute_index(1:sz(1)),:);
+               temp = temp(self.permute_index(1:max(sz)),:);
                out.(names{i}) = reshape(temp,sz);
             end
             % TODO: check that this is expected behavior!!

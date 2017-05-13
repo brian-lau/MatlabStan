@@ -122,7 +122,7 @@ classdef StanFit < handle
          if ~isempty(self.processes)
             if any([self.processes.running])
                for i = 1:numel(self.processes)
-                  if self.processes(i).running;
+                  if self.processes(i).running
                      fprintf('%s \t %s\n',self.processes(i).id,self.processes(i).stdout{end});
                   end
                end
@@ -228,12 +228,22 @@ classdef StanFit < handle
             elseif strcmp(self.model.method,'sample')
                [hdr,flatNames,flatSamples,pos] =  mstan.read_stan_csv(...
                   self.output_file{ind},self.model.inc_warmup);
+            elseif strcmp(self.model.method,'variational')
+               [hdr,flatNames,flatSamples] =  mstan.read_stan_csv(...
+                  self.output_file{ind},true);
+               % lp__ is a legacy feature that is no longer used
+               temp = strcmp(flatNames,'lp__');
+               flatNames(temp) = [];
+               flatSamples(:,temp) = [];
             end
             [names,dims,samples] = mstan.parse_flat_samples(flatNames,flatSamples);
             
             if strcmp(self.model.method,'optimize')
                exp_warmup = 0;
                exp_iter = 1;
+            elseif strcmp(self.model.method,'variational')
+               exp_warmup = 0;
+               exp_iter = size(flatSamples,1); % FIXME
             else
                % Account for thinning
                if self.model.inc_warmup
@@ -282,11 +292,9 @@ classdef StanFit < handle
       
       function str = print(self,varargin)
          % TODO: 
-         % o this should allow multiple files and regexp.
-         % x this does not work when method=optim, should shortcut
-         %       
-         % note that passing regexp through in the command does not work,
-         % need to implment search in matlab
+         % o this should allow regexp.
+         %   passing regexp through in the command does not work,
+         %   need to implment search in matlab
          % TODO: allow print parameters
          % FIXME: ugh, if multiple fits were done with same output names
          % print will just give the results from the last one. should
@@ -312,11 +320,17 @@ classdef StanFit < handle
             file = p.Results.file;
          end
          
+         if mstan.check_ver(self.model.stan_version,'2.8.0')
+            command = 'stansummary';
+         else
+            command = 'print';
+         end
+         
          if ischar(file)
-            command = [self.model.stan_home filesep 'bin/print --sig_figs='...
+            command = [self.model.stan_home filesep 'bin' filesep command ' --sig_figs='...
                num2str(p.Results.sig_figs) ' ' file];
          elseif iscell(file)
-            command = [self.model.stan_home filesep 'bin/print --sig_figs='...
+            command = [self.model.stan_home filesep 'bin' filesep command ' --sig_figs='...
                num2str(p.Results.sig_figs) ' ' sprintf('%s ',file{:})];
          end
          p = processManager('command',command,...
