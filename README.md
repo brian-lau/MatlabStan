@@ -2,7 +2,8 @@
 <a href="http://mc-stan.org">
 <img src="https://raw.githubusercontent.com/stan-dev/logos/master/logo.png?raw=true" width=50 alt="Stan Logo"/>
 </a>
-A Matlab interface to [Stan](http://mc-stan.org/), a package for Bayesian inference.
+
+A Matlab interface to [Stan](http://mc-stan.org), a package for Bayesian inference.
 
 For more information on Stan and its modeling language, see the Stan User's Guide and Reference Manual at [http://mc-stan.org/](http://mc-stan.org/documentation/).
 
