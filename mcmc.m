@@ -26,7 +26,7 @@ classdef mcmc < handle
       rng_state % This is for the Matlab RNG
    end
    properties(GetAccess = public, SetAccess = protected)
-      version = '0.3.1';
+      version = '0.3.2';
    end
    
    methods
@@ -70,7 +70,6 @@ classdef mcmc < handle
       
       function ind = get.permute_index(self)
          % https://github.com/stan-dev/pystan/pull/26
-         % TODO : cache this
          if ~isempty(self.samples)
             curr = rng;
             rng(self.rng_state); % state at object construction
@@ -87,13 +86,18 @@ classdef mcmc < handle
       function set.rng_state(self,r)
          if nargin == 2
             if (isstruct(r)) || (isscalar(r) && (r>=0)) 
+               curr = rng;
+               if strcmp(curr.Type,'Legacy')
+                  rng('default');
+               end
                rng(r);
                self.rng_state = rng;
             else
                error('mcmc:rng:InputFormat','Not a valid seed or struct for RNG.');
             end
          else
-            % Default to seed&state of current rng
+            % Default seed&state
+            rng('default');
             self.rng_state = rng;
          end
       end
