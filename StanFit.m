@@ -290,12 +290,7 @@ classdef StanFit < handle
          warning('Stan seems to have exited badly.');
       end
       
-      function str = print(self,varargin)
-         % TODO: 
-         % o this should allow regexp.
-         %   passing regexp through in the command does not work,
-         %   need to implment search in matlab
-         % TODO: allow print parameters
+      function [str,tab] = print(self,varargin)
          % FIXME: ugh, if multiple fits were done with same output names
          % print will just give the results from the last one. should
          % StanModel generate unique names?
@@ -344,6 +339,9 @@ classdef StanFit < handle
          if p.exitValue == 0
             str = p.stdout;
             fprintf('%s\n',str{:});
+            if nargout == 2
+               tab = self.print2tab(str);
+            end
          else
             if any(strcmp(p.stdout,'Warning: non-fatal error reading adapation data'))...
                || any(strcmp(p.stdout,'Warning: non-fatal error reading samples'))
@@ -351,6 +349,7 @@ classdef StanFit < handle
                fprintf('Wait a bit longer, or attach a listener.\n');
             end   
             str = p.stderr;
+            tab = [];
          end
       end
       
@@ -397,6 +396,48 @@ classdef StanFit < handle
       
       function traceplot(self,varargin)
          self.sim.traceplot(varargin{:});
+      end
+   end
+   
+   methods(Static)
+      function tab = print2tab(str)
+         % Trim header
+         count = 1;
+         while count < numel(str)
+            if ~isempty(strfind(deblank(str{count}),'Mean'))
+               break;
+            else
+               count = count + 1;
+            end
+         end
+         str(1:count-1) = [];
+         
+         % Trim footer
+         count = 1;
+         while count < numel(str)
+            if ~isempty(strfind(deblank(str{count}),'Samples were drawn'))
+               break;
+            else
+               count = count + 1;
+            end
+         end
+         str(count:end) = [];
+         
+         % Column names
+         colNames = strsplit(str{1},' ');
+         colNames(1) = [];
+         colNames = matlab.lang.makeValidName(colNames,'Prefix','p');
+         str(1) = [];
+         
+         % Variable names
+         val = zeros(numel(str),numel(colNames));
+         for i = 1:numel(str)
+            temp = strsplit(str{i},' ');
+            rowNames{i} = temp{1};
+            val(i,:) = cellfun(@(x) str2num(x),temp(2:end));
+         end
+         
+         tab = array2table(val,'VariableNames',colNames,'RowNames',rowNames);
       end
    end
 end
