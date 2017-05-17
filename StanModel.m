@@ -733,7 +733,7 @@ classdef StanModel < handle
             if self.verbose
                fprintf('We have to compile the model first...\n');
             end
-            self.compile();
+            self.compile('model');
          end
          
          if self.verbose
@@ -779,7 +779,7 @@ classdef StanModel < handle
             if self.verbose
                fprintf('We have to compile the model first...\n');
             end
-            self.compile();
+            self.compile('model');
          end
          
          if self.verbose
@@ -812,7 +812,7 @@ classdef StanModel < handle
             if self.verbose
                fprintf('We have to compile the model first...\n');
             end
-            self.compile();
+            self.compile('model');
          end
          
          if self.verbose
@@ -874,23 +874,37 @@ classdef StanModel < handle
          end
       end
       
-      function compile(self,target)
+      function compile(self,target,flags)
+         if nargin < 3
+            flags = '';
+         elseif iscell(flags) && all(cellfun(@(x) ischar(x),flags))
+            flags = sprintf('%s ',flags{:});
+         elseif ischar(flags)
+            flags = sprintf('%s ',flags);
+         else
+            error('StanModel:compile:InputFormat',...
+               'flags should be formatted as a string or cell array of strings');
+         end
+         
          if nargin < 2
             target = 'model';
          end
-         if any(strcmp({'stanc' 'libstan.a' 'libstanc.a' 'print'},target))
-            % FIXME: does Stan on windows use / or \?
-            command = ['make bin/' target];
-            printStderr = false;
-         elseif strcmp(target,'model')
-            if ispc
-               command = ['make ' regexprep(self.model_binary_path,'\','/')];
-            else
-               command = ['make ' self.model_binary_path];
-            end
-            printStderr = and(true,self.verbose);
-         else
-            error('Unknown target');
+         
+         switch lower(target)
+            case {'stanc' 'libstan.a' 'libstanc.a' 'print' 'stansummary'}
+               % FIXME: does Stan on windows use / or \?
+               command = ['make ' flags 'bin/' target];
+               printStderr = false;
+            case 'model'
+               if ispc
+                  command = ['make ' flags regexprep(self.model_binary_path,'\','/')];
+               else
+                  command = ['make ' flags self.model_binary_path];
+               end
+               printStderr = and(true,self.verbose);
+            otherwise
+               error('StanModel:compile:InputFormat',...
+                  'Unknown target');
          end
 
          p = processManager('id','compile',...
@@ -921,7 +935,7 @@ classdef StanModel < handle
          warning off MATLAB:structOnObject
          S = struct(self);
          warning on MATLAB:structOnObject
-         for i=1:length(props)
+         for i = 1:length(props)
             % Do not copy Transient or Dependent Properties
             if meta.Properties{i}.Transient || meta.Properties{i}.Dependent
                continue;
