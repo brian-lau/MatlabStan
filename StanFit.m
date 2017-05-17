@@ -337,10 +337,13 @@ classdef StanFit < handle
                             'keepStderr',true);
          p.block(0.05);
          if p.exitValue == 0
-            str = p.stdout;
-            fprintf('%s\n',str{:});
-            if nargout == 2
-               tab = self.print2tab(str);
+            temp = p.stdout;
+            fprintf('%s\n',temp{:});
+            if nargout > 0
+               str = temp;
+            end
+            if nargout > 1
+               tab = self.print2tab(temp);
             end
          else
             if any(strcmp(p.stdout,'Warning: non-fatal error reading adapation data'))...
@@ -380,7 +383,8 @@ classdef StanFit < handle
             if is_running(self) && ~all(isnan(self.pos_))
                % not finished, but peek has been called for partial samples
             elseif is_running(self) && all(isnan(self.pos_)) % not finished
-               fprintf('Stan is still working. You can either:\n');
+               self.check();
+               fprintf('\nStan is still working. You can either:\n');
                fprintf('  1) Use the peek method to get partial samples\n');
                fprintf('  2) Come back later, or\n');
                fprintf('  3) Attach a listener to the StanFit object.\n');
