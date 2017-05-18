@@ -19,7 +19,7 @@ function str = parse_stan_params(s,root)
       try
          if isstruct(s.(fn{i}))
             % If any of the fieldnames match the *previous* value, assume the
-            % previous value is a selector from amongst the fielnames, and
+            % previous value is a selector from amongst the fieldnames, and
             % delete the other branches
             if any(strcmp(fieldnames(s),val))
                root = val;

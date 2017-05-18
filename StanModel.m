@@ -99,8 +99,8 @@
 % expose remaining pystan parameters
 % dump reader (to load data as struct)
 % model definitions
-% compile flags
 % Windows
+% x compile flags
 % x inits, still need test
 % x fullfile warnings on 2012b
 % o hash to unique names for data/inits
@@ -157,7 +157,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.7.0';
+      version = '0.8.0';
    end
 
    methods
@@ -872,6 +872,17 @@ classdef StanModel < handle
          else
             fprintf('%s\n',p.stdout{:});
          end
+      end
+      
+      function config(self)
+         % Get CmdStan configuration
+         p = processManager('id','stan help','command','make help-dev',...
+                            'workingDir',self.stan_home,...
+                            'wrap',100,...
+                            'keepStdout',true,...
+                            'printStdout',false);
+         p.block(0.05);
+         fprintf('%s\n',p.stdout{:});
       end
       
       function compile(self,target,flags)
