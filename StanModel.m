@@ -110,6 +110,7 @@
 classdef StanModel < handle
    properties
       stan_home
+      stan_version
       working_dir
    end
    properties(SetAccess = private)
@@ -168,6 +169,7 @@ classdef StanModel < handle
          p.KeepUnmatched = true;
          p.FunctionName = 'stan constructor';
          p.addParamValue('stan_home',mstan.stan_home);
+         p.addParamValue('stan_version',[],@(x) isnumeric(x) && numel(x)==3);
          p.addParamValue('file','');
          p.addParamValue('model_name','anon_model');
          p.addParamValue('model_code',{});
@@ -189,29 +191,13 @@ classdef StanModel < handle
                'processManager (https://github.com/brian-lau/MatlabProcessManager) is required');
          end
 
-         % TODO: move this into stan_version
-         count = 0;
-         while 1 % FIXME, occasionally stanc does not return version?
-            try
-               ver = self.stan_version();
-               [self.defaults,self.validators] = mstan.stan_params(ver);
-               break;
-            catch err
-               if count == 0
-                  disp('Having a problem getting stan version.');
-                  disp('This is likely a problem with Java running out of file descriptors');
-               end
-               if count <= 5
-                   disp('Trying again.');
-                   pause(0.25);
-               else
-                   disp('Giving up.');
-                   rethrow(err);
-               end
-               count = count + 1;
-            end
+         if isempty(p.Results.stan_version)
+            self.stan_version = self.get_stan_version();
+         else
+            self.stan_version = p.Results.stan_version;
          end
-         self.params = self.defaults;         
+         [self.defaults,self.validators] = mstan.stan_params(self.stan_version);
+         self.params = self.defaults;
          
          if isempty(p.Results.file)
             self.file = '';
@@ -837,8 +823,33 @@ classdef StanModel < handle
       function diagnose(self)
          error('not done');
       end
+
+      function ver = get_stan_version(self)
+         % Get Stan version by calling stanc
+         count = 0;
+         while 1 % Occasionally stanc does not return version?
+            try
+               ver = self.get_stan_version_();
+               break;
+            catch err
+               if count == 0
+                  disp('Having a problem getting stan version.');
+                  disp('This is likely a problem with Java running out of file descriptors');
+               end
+               if count <= 5
+                   disp('Trying again.');
+                   pause(0.25);
+               else
+                   disp('Giving up.');
+                   disp('You can call StanModel by explicitly setting the Stan version.');
+                   rethrow(err);
+               end
+               count = count + 1;
+            end
+         end        
+      end
       
-      function ver = stan_version(self)
+      function ver = get_stan_version_(self)
          command = [fullfile(self.stan_home,'bin','stanc') ' --version'];
          p = processManager('id','stanc version','command',command,...
                             'keepStdout',true,...
