@@ -112,6 +112,7 @@ classdef StanModel < handle
       stan_home
       stan_version
       working_dir
+      id 
    end
    properties(SetAccess = private)
       model_home = ''% url or path to .stan file
@@ -121,7 +122,6 @@ classdef StanModel < handle
       model_name
       model_code
       
-      id 
       iter
       warmup
       thin
@@ -173,6 +173,7 @@ classdef StanModel < handle
          p.addParamValue('file','');
          p.addParamValue('model_name','anon_model');
          p.addParamValue('model_code',{});
+         p.addParamValue('id','',@ischar);
          p.addParamValue('working_dir',pwd);
          p.addParamValue('method','sample',@(x) any(strcmp(x,...
             {'sample' 'optimize' 'variational' 'diagnose'})));
@@ -191,11 +192,18 @@ classdef StanModel < handle
                'processManager (https://github.com/brian-lau/MatlabProcessManager) is required');
          end
 
+         if isempty(p.Results.id)
+            self.random_id();
+         else
+            self.id = p.Results.id;
+         end
+         
          if isempty(p.Results.stan_version)
             self.stan_version = self.get_stan_version();
          else
             self.stan_version = p.Results.stan_version;
          end
+         
          [self.defaults,self.validators] = mstan.stan_params(self.stan_version);
          self.params = self.defaults;
          
@@ -212,10 +220,7 @@ classdef StanModel < handle
          self.chains = p.Results.chains;
          
          if isempty(p.Results.sample_file)
-            self.sample_file = self.params.output.file;
-         else
-            self.sample_file = p.Results.sample_file;
-            self.params.output.file = self.sample_file;
+            self.params.output.file = [self.id '-output.csv'];
          end
 
          % pass remaining inputs to set()
@@ -225,16 +230,16 @@ classdef StanModel < handle
 
       function set(self,varargin)
          p = inputParser;
-         p.KeepUnmatched= false;
+         p.KeepUnmatched = false;
          p.FunctionName = 'StanModel parameter setter';
          p.addParamValue('stan_home',self.stan_home);
          p.addParamValue('file',self.file);
          p.addParamValue('model_name',self.model_name);
          p.addParamValue('model_code',self.model_code);
+         p.addParamValue('id',self.id);
          p.addParamValue('working_dir',self.working_dir);
          p.addParamValue('method',self.method);
          p.addParamValue('sample_file',self.sample_file);
-         p.addParamValue('id',self.id);
          p.addParamValue('iter',self.iter);
          p.addParamValue('warmup',self.warmup);
          p.addParamValue('thin',self.thin);
@@ -263,16 +268,13 @@ classdef StanModel < handle
          end
          self.working_dir = p.Results.working_dir;
          
+         if ~isempty(p.Results.id)
+            self.id = p.Results.id;
+         end
+         self.params.output.file = [self.id '-output.csv'];
+        
          self.method = p.Results.method;
          self.chains = p.Results.chains;
-         
-         if isempty(p.Results.sample_file)
-            self.sample_file = self.params.output.file;
-         else
-            self.sample_file = p.Results.sample_file;
-            self.params.output.file = self.sample_file;
-         end
-         self.id = p.Results.id;
          self.iter = p.Results.iter;
          self.warmup = p.Results.warmup;
          self.thin = p.Results.thin;
@@ -472,14 +474,17 @@ classdef StanModel < handle
       end
       
       function set.id(self,id)
-         validateattributes(id,self.validators.id{1},self.validators.id{2})
-         self.params.id = id;
+         if ischar(id) && ~isempty(id)
+            self.id = id;
+         else
+            error('bad id');
+         end
       end
       
-      function id = get.id(self)
-         id = self.params.id;
+      function random_id(self)
+         self.id = mstan.randomUUID('base62');
       end
-            
+                  
       function set.iter(self,iter)
          validateattributes(iter,self.validators.sample.num_samples{1},...
             self.validators.sample.num_samples{2})
@@ -511,12 +516,17 @@ classdef StanModel < handle
       end
       
       function set.init(self,init)
+         % Set initial conditions for chains
+         % Can have different inits for each chain
          if isstruct(init) || isa(init,'containers.Map')
-            % FIXME: how to contruct filename? also for data
-            fname = fullfile(self.working_dir,'temp.init.R');
-            mstan.rdump(fname,init);
-            self.init = init;
-            self.params.init = fname;
+            nChains = numel(init);
+            for i = 1:nChains
+               fname = fullfile(self.working_dir,[self.id '-init-' num2str(i) '.R']);
+               mstan.rdump(fname,init(i));
+               fnames{i} = fname;
+            end
+            self.init = init(:)';
+            self.params.init = fnames;
          elseif ischar(init)
             if exist(init,'file') %% FIXME: exist checks in entire Matlabpath
                % TODO: read data into struct... what a mess...
@@ -528,14 +538,23 @@ classdef StanModel < handle
             end
          else
             if isempty(init)
-               self.init = self.defaults.init;
+               nChains = self.chains;
+               self.init = repmat(self.defaults.init,1,nChains);
                self.params.init = self.defaults.init;
             else
-               validateattributes(init,self.validators.init{1},...
-                  self.validators.init{2})
-               self.init = init;
-               self.params.init = init;
+               nChains = numel(init);
+               for i = 1:nChains
+                  validateattributes(init(i),self.validators.init{1},...
+                     self.validators.init{2});
+               end
+               self.init = init(:)';
+               self.params.init = init(:)';
             end
+         end
+         
+         if self.chains ~= nChains
+            warning('chains');
+            self.chains = nChains;
          end
       end
       
@@ -680,7 +699,7 @@ classdef StanModel < handle
       function set.data(self,d)
          if isstruct(d) || isa(d,'containers.Map') || isa(d,'RData')
             % FIXME: how to contruct filename?
-            fname = fullfile(self.working_dir,'temp.data.R');
+            fname = fullfile(self.working_dir,[self.id '-data.R']);
             if isa(d,'RData')
                rdump(d,fname);
             else
@@ -725,17 +744,21 @@ classdef StanModel < handle
          if self.verbose
             fprintf('Stan is sampling with %g chains...\n',self.chains);
          end
-         chain_id = 1:self.chains; % TODO chain_id parameter?
+         
          [~,name,ext] = fileparts(self.sample_file);
          base_name = self.sample_file;
-         base_id = self.id;
          for i = 1:self.chains
-            sample_file{i} = [name '-' num2str(chain_id(i)) ext];
+            % Set a filename for each chain
+            sample_file{i} = [name '-' num2str(i) ext];
             self.sample_file = sample_file{i};
-            % Stan automatically uses the id to advance its RNG. Note that
-            % Stan id defaults to 0, although you cannot actually pass this
-            % in as a valid value.
-            self.id = base_id + chain_id(i) - 1;
+            
+            % Give Stan a different id for each chain. This is used to advance 
+            % Stan's RNG to ensure that draws come from non-overlapping sequences.
+            self.params.id = i;
+            
+            % Chain specific inits
+            self.params.init = self.init(i);
+            
             p(i) = processManager('id',sample_file{i},...
                                'command',sprintf('%s',self.command{:}),...
                                'workingDir',self.working_dir,...
@@ -745,8 +768,9 @@ classdef StanModel < handle
                                'printStdout',self.verbose,...
                                'autoStart',false);
          end
+         
+         % Reset base name
          self.sample_file = base_name;
-         self.id = base_id;
          
          fit = StanFit('model',copy(self),'processes',p,...
                        'output_file',cellfun(@(x) fullfile(self.working_dir,x),sample_file,'uni',0),...

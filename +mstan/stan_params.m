@@ -169,8 +169,8 @@ function [params,valid] = stan_params(ver)
    valid.diagnose = struct(...
                            'test',{{{'gradient'}}});
 
-   params.id = 1; % 0 doesnot work as default
-   valid.id = {{'numeric'} {'scalar','>',0}};
+   params.id = 1;
+   
    params.data = struct('file','');
    valid.data = struct('file',@isstr);
    params.init = 2;
