@@ -15,8 +15,8 @@ The following is the classic 'eight schools' example from Section 5.5 of [Gelman
 ```
 schools_code = {
    'data {'
-   '    int<lower=0> J; // number of schools '
-   '    real y[J]; // estimated treatment effects'
+   '    int<lower=0> J;         // number of schools '
+   '    real y[J];              // estimated treatment effects'
    '    real<lower=0> sigma[J]; // s.e. of effect estimates '
    '}'
    'parameters {'
@@ -27,7 +27,7 @@ schools_code = {
    'transformed parameters {'
    '    real theta[J];'
    '    for (j in 1:J)'
-   '    theta[j] <- mu + tau * eta[j];'
+   '    theta[j] = mu + tau * eta[j];'
    '}'
    'model {'
    '    eta ~ normal(0, 1);'
