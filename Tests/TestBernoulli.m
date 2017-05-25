@@ -114,8 +114,7 @@ classdef TestBernoulli < TestCase
       
       function tearDown(self)
          delete('bernoulli*');
-         delete('output*');
-         delete('temp.data.R');
+         delete([self.fit.model.id '*']);
       end
    end
    

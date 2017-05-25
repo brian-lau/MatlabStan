@@ -66,11 +66,7 @@ classdef TestOptim < TestCase
       
       function tearDown(self)
          delete('anon_model*');
-         delete('output*');
-         warning off;
-         delete('optim.data.R');
-         delete('temp.data.R');
-         warning on;
+         delete([self.model.id '*']);
       end
    end
    

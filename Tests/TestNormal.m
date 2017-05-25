@@ -40,7 +40,7 @@ classdef TestNormal < TestCase
             
       function tearDown(self)
          delete('normal1*');
-         delete('output*');
+         delete([self.model.id '*output*']);
       end
    end
 end

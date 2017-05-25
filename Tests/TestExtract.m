@@ -85,7 +85,7 @@ classdef TestExtract < TestCase
       
       function tearDown(self)
          delete('anon_model*');
-         delete('output*');
+         delete([self.fit.model.id '*']);
       end
    end
    

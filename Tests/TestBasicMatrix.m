@@ -48,8 +48,7 @@ classdef TestBasicMatrix < TestCase
       
       function tearDown(self)
          delete('anon_model*');
-         delete('output*');
-         delete('temp.data.R');
+         delete([self.fit.model.id '*']);
       end
    end
 end
