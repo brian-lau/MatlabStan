@@ -95,17 +95,11 @@
 %     https://github.com/brian-lau/MatlabStan
 
 % TODO
-% unique filenames for outputs?
 % expose remaining pystan parameters
 % dump reader (to load data as struct)
 % model definitions
 % Windows
-% x compile flags
-% x inits, still need test
-% x fullfile warnings on 2012b
-% o hash to unique names for data/inits
 % o hash for binary doesn't make sense as dependent
-% o unique names for inits & data
 
 classdef StanModel < handle
    properties
@@ -158,7 +152,7 @@ classdef StanModel < handle
       model_name_
    end
    properties(SetAccess = protected)
-      version = '0.8.0';
+      version = '0.9.0';
    end
 
    methods
@@ -167,7 +161,7 @@ classdef StanModel < handle
       function self = StanModel(varargin)
          p = inputParser;
          p.KeepUnmatched = true;
-         p.FunctionName = 'stan constructor';
+         p.FunctionName = 'StanModel constructor';
          p.addParamValue('stan_home',mstan.stan_home);
          p.addParamValue('stan_version',[],@(x) isnumeric(x) && numel(x)==3);
          p.addParamValue('file','');
@@ -452,6 +446,18 @@ classdef StanModel < handle
          end
       end
       
+      function set.method(self,method)
+         assert(ischar(method),'Method must be a string');
+         method = lower(method);
+         assert(any(strcmp(method,{'sample','optimize','variational'})),...
+            'Method must be one of ''sample'', ''optimize'', ''variational''');
+         
+         if any(strcmp(method,{'optimize' 'variational'}))
+            self.chains = 1;
+         end
+         self.method = method;
+      end
+      
       function set.chains(self,n_chains)
          n_processors = java.lang.Runtime.getRuntime.availableProcessors;
          if n_chains < 1
@@ -460,7 +466,34 @@ classdef StanModel < handle
          elseif n_chains > n_processors
             warning('stan:chains:InputFormat','# of chains > # of cores.');
          end
-         self.chains = round(n_chains);
+         
+         if any(strcmp(self.method,{'optimize' 'variational'}))
+            self.chains = 1;
+         else
+            self.chains = round(n_chains);
+         end
+         
+         if self.chains < numel(self.init)
+            self.init = self.init(1:self.chains);
+         elseif self.chains > numel(self.init)
+            % TODO
+            if isempty(self.init)
+               self.init = []; % Default
+            elseif numel(self.init) == 1
+               self.init(2:n_chains) = self.init;
+            elseif isstruct(self.init)
+               temp = num2cell(self.init);
+               if isequal(temp{:})
+                  self.init(numel(self.init):n_chains) = self.init(1);
+               else
+                  self.init = [];
+               end
+            elseif all(self.init == self.init(1))
+               self.init(numel(self.init)+1:n_chains) = self.init(1);
+            else
+               self.init = []; % Default
+            end
+         end
       end
       
       function set.refresh(self,refresh)
@@ -553,7 +586,7 @@ classdef StanModel < handle
          end
          
          if self.chains ~= nChains
-            warning('chains');
+            % TODO, setter getting called repeatedly?
             self.chains = nChains;
          end
       end
@@ -757,7 +790,11 @@ classdef StanModel < handle
             self.params.id = i;
             
             % Chain specific inits
-            self.params.init = self.init(i);
+            if isstruct(self.init) || isa(self.init,'containers.Map')
+               self.params.init = fullfile(self.working_dir,[self.id '-init-' num2str(i) '.R']);
+            else
+               self.params.init = self.init(i);
+            end
             
             p(i) = processManager('id',sample_file{i},...
                                'command',sprintf('%s',self.command{:}),...
@@ -771,6 +808,7 @@ classdef StanModel < handle
          
          % Reset base name
          self.sample_file = base_name;
+         self.params.init = self.init;
          
          fit = StanFit('model',copy(self),'processes',p,...
                        'output_file',cellfun(@(x) fullfile(self.working_dir,x),sample_file,'uni',0),...
@@ -854,6 +892,9 @@ classdef StanModel < handle
          while 1 % Occasionally stanc does not return version?
             try
                ver = self.get_stan_version_();
+               if count > 0
+                  disp('Succeeded in getting stan version.');
+               end
                break;
             catch err
                if count == 0
@@ -865,7 +906,8 @@ classdef StanModel < handle
                    pause(0.25);
                else
                    disp('Giving up.');
-                   disp('You can call StanModel by explicitly setting the Stan version.');
+                   disp('You can try setting the Stan version explicitly using the stan_version attribute.');
+                   disp('i.e. StanModel.stan_version = [2 15 0]');
                    rethrow(err);
                end
                count = count + 1;
@@ -921,6 +963,7 @@ classdef StanModel < handle
       end
       
       function compile(self,target,flags)
+         % Compile CmdStan components and models
          if nargin < 3
             flags = '';
          elseif iscell(flags) && all(cellfun(@(x) ischar(x),flags))
