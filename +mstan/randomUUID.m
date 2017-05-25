@@ -1,3 +1,5 @@
+% Generate a random UUID
+% Dictionaries https://tools.ietf.org/rfc/rfc4648.txt
 function uuid = randomUUID(base)
 
 import mstan.*;
@@ -11,10 +13,12 @@ uuid = char(java.util.UUID.randomUUID());
 switch base
    case 'hex'
       return;
+   case {'32' 32 'base32'}
+      dict = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
    case {'62' 62 'base62'}
-      dict = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      dict = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
    case {'64' 64 'base64'}
-      dict = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-';
+      dict = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
 end
 
 uuid = strrep(uuid,'-','');
