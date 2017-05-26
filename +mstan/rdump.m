@@ -1,52 +1,47 @@
+% Write a struct or containers.Map to Rdump format
+%
+% mstan.rdump('test',struct('A',1,'B',[1 2 3],'C',magic(3),'D',reshape(1:24,2,3,4)))
+%
 % CmdStan manual Appendix C
 % https://github.com/stan-dev/rstan/search?q=stan_rdump&ref=cmdform
-% struct or containers.Map
-%
-% mstan.rdump('test',struct('test',reshape(1:24,2,3,4)))
 function fid = rdump(fname,content)
-   if isstruct(content)
-      vars = fieldnames(content);
-      data = struct2cell(content);
-   elseif isa(content,'containers.Map')
-      vars = content.keys;
-      data = content.values;
+
+if isstruct(content)
+   vars = fieldnames(content);
+   data = struct2cell(content);
+elseif isa(content,'containers.Map')
+   vars = content.keys;
+   data = content.values;
+else
+   error('mstan.rdump content must be a struct or containers.Map');
+end
+
+assert(all(cellfun(@(x) isnumeric(x),data)),'Numeric data required');
+
+fid = fopen(fname,'wt');
+c = onCleanup(@()fclose(fid));
+
+for i = 1:numel(vars)
+   if isempty(data{i})
+      continue;
+   end
+   if any(data{i}(:) > intmax('int32'))
+      num_list = strrep(deblank(sprintf('%f ', data{i}(:))),' ',',');
    else
-      error('mstan.rdump content must be a struct or containers.Map');
+      num_list = strrep(deblank(sprintf('%d ', data{i}(:))),' ',',');
    end
 
-   fid = fopen(fname,'wt');
-   c = onCleanup(@()fclose(fid));
-   
-   for i = 1:numel(vars)
-      if isscalar(data{i})
-         if any(data{i}(:) > intmax('int32'))
-            fprintf(fid,'%s <- %f\n',vars{i},data{i});
-         else
-            fprintf(fid,'%s <- %d\n',vars{i},data{i});
-         end
-      elseif isvector(data{i})
-         fprintf(fid,'%s <- c(',vars{i});
-         if any(data{i}(:) > intmax('int32'))
-            fprintf(fid,'%f, ',data{i}(1:end-1));
-            fprintf(fid,'%f)\n',data{i}(end));
-         else
-            fprintf(fid,'%d, ',data{i}(1:end-1));
-            fprintf(fid,'%d)\n',data{i}(end));
-         end
-      elseif isnumeric(data{i})
-         fprintf(fid,'%s <- structure(c(',vars{i});
-         if any(data{i}(:) > intmax('int32'))
-            fprintf(fid,'%f, ',data{i}(1:end-1));
-            fprintf(fid,'%f), .Dim = c(',data{i}(end));
-         else
-            fprintf(fid,'%d, ',data{i}(1:end-1));
-            fprintf(fid,'%d), .Dim = c(',data{i}(end));
-         end
-         [sz(:)] = deal(size(data{i}));
-         for j = 1:(numel(sz)-1)
-            fprintf(fid,'%g,',sz(j));
-         end
-         fprintf(fid,'%g))\n',sz(end));
+   if isscalar(data{i})
+      fprintf(fid,'%s <- %s\n',vars{i},num_list);
+   elseif isvector(data{i})
+      fprintf(fid,'%s <- c(%s)\n',vars{i},num_list);
+   elseif isnumeric(data{i})
+      fprintf(fid,'%s <- structure(c(%s), .Dim=c(',vars{i},num_list);
+      [sz(:)] = deal(size(data{i}));
+      for j = 1:(numel(sz)-1)
+         fprintf(fid,'%g,',sz(j));
       end
+      fprintf(fid,'%g))\n',sz(end));
+      clear sz;
    end
 end
