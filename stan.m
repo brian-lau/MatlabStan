@@ -106,10 +106,18 @@ p.parse(varargin{:});
 
 if isempty(p.Results.fit)
    model = StanModel();
-elseif isa(p.Results.fit,'StanFit') %FIXME, stan seed is also copied...
-   model = copy(p.Results.fit.model);
+elseif isa(p.Results.fit,'StanFit') || isa(p.Results.fit,'StanModel')
+   if isa(p.Results.fit,'StanModel')
+      model = copy(p.Results.fit);
+   else
+      model = copy(p.Results.fit.model);
+   end
+   % Get a new id for this copy
+   model.random_id();
+   % Get a new seed for this copy
+   model.seed = round(sum(100*clock));
 else
-   model = copy(p.Results.fit);
+   error('fit must be a StanFit or StanModel object.')
 end
 
 model.method = p.Results.method;
