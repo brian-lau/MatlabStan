@@ -511,6 +511,8 @@ classdef StanModel < handle
       function set.id(self,id)
          if ischar(id) && ~isempty(id)
             self.id = id;
+            % Update the output filename
+            self.params.output.file = [self.id '-output.csv'];
          else
             error('bad id');
          end
