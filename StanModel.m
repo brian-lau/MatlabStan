@@ -14,6 +14,9 @@
 % ATTRIBUTES
 %     file   - string, optional
 %              The string passed is the filename containing the Stan model.
+%     stan_version - [MAJOR MINOR PATCH] w/ Stan version
+%              This is typically set automatically, but can be set
+%              explicitly as a vector [MAJOR MINOR PATCH] if needed
 %     method - string, optional
 %              {'sample' 'optimize' 'variational'}, default = 'sample'
 %     model_code - string, optional
@@ -82,7 +85,6 @@
 %     optimizing
 %     sampling
 %     help
-%     stan_version - returns a vector [MAJOR MINOR PATCH] w/ Stan version
 %     command - displays the Stan commandline parameters for current model
 %     model_binary_path - returns the path to C++ binary for current model
 %     copy - returns a shallow copy of the current model
