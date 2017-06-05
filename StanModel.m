@@ -12,6 +12,9 @@
 %     3) as a Matlab StanModel object (use the 'fit' input)
 %
 % ATTRIBUTES
+%     stan_home - string, optional
+%              Parent directory of CmdStan installation.
+%              Default = directory specified in +mstan/stan_home.m
 %     file   - string, optional
 %              The string passed is the filename containing the Stan model.
 %     stan_version - [MAJOR MINOR PATCH] w/ Stan version
@@ -56,16 +59,13 @@
 %              If method = 'variational', {'MEANFIELD','FULLRANK'}, default = 'MEANFIELD'
 %     sample_file - string, optional
 %              Name of file(s) where samples for all parameters are saved.
-%              Default = 'output.csv'.
+%              Default = [StanModel.id '-output.csv'].
 %     diagnostic_file % not done
 %     verbose - bool, optional
 %              Specifies whether output is piped to console. Default = false
 %     refresh - scalar, optional
 %              Number of iterations between reports of sampling progress.
 %              Default = 100.
-%     stan_home - string, optional
-%              Parent directory of CmdStan installation.
-%              Default = directory specified in +mstan/stan_home.m
 %     working_dir - string, optional
 %              Directory for reading/writing models/data.
 %              Default = pwd
@@ -97,31 +97,26 @@
 %     https://github.com/brian-lau/MatlabStan
 
 % TODO
-% expose remaining pystan parameters
-% dump reader (to load data as struct)
-% model definitions
-% Windows
+% o dump reader (to load data as struct)
 % o hash for binary doesn't make sense as dependent
 
 classdef StanModel < handle
    properties
-      stan_home
-      stan_version
-      working_dir
-      id 
-   end
-   properties(SetAccess = private)
-      model_home = ''% url or path to .stan file
+      stan_home               % Base directory of CmdStan installation
+      stan_version            % Numeric triple [MAJOR MINOR PATCH] of CmdStan
+      working_dir             % Directory where data/samples/inits are written
+      id                      % Char id for StanModel instance
+      model_home = ''         % url or path to .stan file
    end
    properties(Dependent = true)
-      file = ''
-      model_name
-      model_code
+      model_code              % Stan code for model
+      model_name              % Model name
+      file = ''               % File associated with model
       
-      iter
-      warmup
-      thin
-      seed
+      iter                    % # of samples (excluding warmup)
+      warmup                  % # of warmup (i.e., burnin) samples
+      thin                    % 
+      seed                    % RNG seed for CmdStan
 
       algorithm
       control
@@ -153,8 +148,8 @@ classdef StanModel < handle
       file_
       model_name_
    end
-   properties(SetAccess = protected)
-      version = '0.9.0';
+   properties(SetAccess = private)
+      version = '0.10.0';
    end
 
    methods
@@ -167,6 +162,7 @@ classdef StanModel < handle
          p.addParamValue('stan_home',mstan.stan_home);
          p.addParamValue('stan_version',[],@(x) isnumeric(x) && numel(x)==3);
          p.addParamValue('file','');
+         p.addParamValue('model_home','');
          p.addParamValue('model_name','anon_model');
          p.addParamValue('model_code',{});
          p.addParamValue('id','',@ischar);
@@ -183,7 +179,7 @@ classdef StanModel < handle
          self.file_overwrite = p.Results.file_overwrite;
          self.stan_home = p.Results.stan_home;
 
-         if ~exist('processManager')
+         if ~exist('processManager','file')
             error('StanModel:constructor:MissingFunction',...
                'processManager (https://github.com/brian-lau/MatlabProcessManager) is required');
          end
@@ -203,6 +199,9 @@ classdef StanModel < handle
          [self.defaults,self.validators] = mstan.stan_params(self.stan_version);
          self.params = self.defaults;
          
+         self.working_dir = p.Results.working_dir;
+         self.model_home = p.Results.model_home;
+         
          if isempty(p.Results.file)
             self.file = '';
             self.model_name = p.Results.model_name;
@@ -210,7 +209,6 @@ classdef StanModel < handle
          else
             self.file = p.Results.file;
          end
-         self.working_dir = p.Results.working_dir;
          
          self.method = p.Results.method;
          self.chains = p.Results.chains;
@@ -231,6 +229,7 @@ classdef StanModel < handle
          p.addParamValue('stan_home',self.stan_home);
          p.addParamValue('file',self.file);
          p.addParamValue('model_name',self.model_name);
+         p.addParamValue('model_home',self.model_home);
          p.addParamValue('model_code',self.model_code);
          p.addParamValue('id',self.id);
          p.addParamValue('working_dir',self.working_dir);
@@ -253,6 +252,10 @@ classdef StanModel < handle
          self.verbose = p.Results.verbose;
          self.file_overwrite = p.Results.file_overwrite;
          self.stan_home = p.Results.stan_home;
+         
+         self.working_dir = p.Results.working_dir;
+         self.model_home = p.Results.model_home;
+
          if isempty(p.Results.file)
             self.model_name = p.Results.model_name;
             self.model_code = p.Results.model_code;
@@ -262,7 +265,6 @@ classdef StanModel < handle
                self.file = p.Results.file;
             end
          end
-         self.working_dir = p.Results.working_dir;
          
          if ~isempty(p.Results.id)
             self.id = p.Results.id;
@@ -287,7 +289,7 @@ classdef StanModel < handle
          [success,fa] = fileattrib(d);
          if ~success
             error('StanModel:stan_home:InputFormat',...
-               'Can''t parse stan_home. Is it set correctly? Check ''mstan.stan_home''');
+               'Can''t parse stan_home. Is it set correctly?\nCheck the file ''+mstan/stan_home.m''');
          end
          if fa.directory
             if exist(fullfile(fa.Name,'makefile'),'file') ...
@@ -296,7 +298,7 @@ classdef StanModel < handle
             else
                % TODO make this message more informative
                error('StanModel:stan_home:InputFormat',...
-                  'Does not look like a proper stan setup');
+                  'Does not look like a proper stan setup.\nSee https://github.com/brian-lau/MatlabStan/wiki/Getting-Started');
             end
          else
             error('StanModel:stan_home:InputFormat',...
@@ -337,10 +339,9 @@ classdef StanModel < handle
             else
                self.update_model('model_name',model_name);
             end
-            
          else
-            error('stan:model_name:InputFormat',...
-               'model_name should be a non-empty string');
+            error('StanModel:model_name:InputFormat',...
+               'model_name must be a non-empty string');
          end
       end
             
@@ -361,14 +362,14 @@ classdef StanModel < handle
       end
       
       function bool = is_compiled(self)
+         % Check if model is compiled
          bool = false;
          if ~isempty(dir(self.model_binary_path))
-            % MD5
+            % Compare MD5 hash
             chk = mstan.DataHash(self.model_binary_path,struct('Input','file'));
             if strcmp(chk,self.checksum_binary)
                bool = true;
             end
-            return;
          end
       end
       
@@ -388,6 +389,12 @@ classdef StanModel < handle
          end
       end      
       
+      function set.stan_version(self,stan_version)
+         assert(isnumeric(stan_version) && (numel(stan_version)==3),...
+            'stan_version must be provided as a numeric triple [MAJOR MINOR PATCH]');
+         self.stan_version = stan_version;
+      end
+      
       function set.model_code(self,model)
          if isempty(model)
             return;
@@ -403,12 +410,12 @@ classdef StanModel < handle
             self.update_model('model_code',model);
          else
             error('StanModel:model_code:InputFormat',...
-               'does not look like a stan model');
+               'Does not look like a properly formatted Stan model');
          end
       end
       
       function model_code = get.model_code(self)
-         if isempty(self.file_)%isempty(self.model_home)
+         if isempty(self.file_)
             model_code = {};
          else
             % Always reread file? Or checksum? or listen for property change?
@@ -419,7 +426,7 @@ classdef StanModel < handle
       
       function set.model_home(self,d)
          if isempty(d)
-            self.model_home = pwd;
+            self.model_home = self.working_dir;
          elseif isdir(d)
             [~,fa] = fileattrib(d);
             if fa.UserWrite && fa.UserExecute
@@ -466,7 +473,7 @@ classdef StanModel < handle
             fprintf('Setting # of chains = 1\n');
             n_chains = 1;
          elseif n_chains > n_processors
-            warning('stan:chains:InputFormat','# of chains > # of cores.');
+            warning('StanModel:chains:InputFormat','# of chains > # of cores.');
          end
          
          if any(strcmp(self.method,{'optimize' 'variational'}))
@@ -478,7 +485,6 @@ classdef StanModel < handle
          if self.chains < numel(self.init)
             self.init = self.init(1:self.chains);
          elseif self.chains > numel(self.init)
-            % TODO
             if isempty(self.init)
                self.init = []; % Default
             elseif numel(self.init) == 1
@@ -514,7 +520,7 @@ classdef StanModel < handle
             % Update the output filename
             self.params.output.file = [self.id '-output.csv'];
          else
-            error('bad id');
+            error('StanModel:chains:InputFormat','id must be a string.');
          end
       end
       
@@ -589,8 +595,9 @@ classdef StanModel < handle
             end
          end
          
+         % Update # of chains
          if self.chains ~= nChains
-            % TODO, setter getting called repeatedly?
+            % FIXME, setter getting called repeatedly?
             self.chains = nChains;
          end
       end
@@ -735,7 +742,6 @@ classdef StanModel < handle
       
       function set.data(self,d)
          if isstruct(d) || isa(d,'containers.Map') || isa(d,'RData')
-            % FIXME: how to contruct filename?
             fname = fullfile(self.working_dir,[self.id '-data.R']);
             if isa(d,'RData')
                rdump(d,fname);
@@ -906,13 +912,13 @@ classdef StanModel < handle
                   disp('This is likely a problem with Java running out of file descriptors');
                end
                if count <= 5
-                   disp('Trying again.');
-                   pause(0.25);
+                  disp('Trying again.');
+                  pause(0.25);
                else
-                   disp('Giving up.');
-                   disp('You can try setting the Stan version explicitly using the stan_version attribute.');
-                   disp('i.e. StanModel.stan_version = [2 15 0]');
-                   rethrow(err);
+                  disp('Giving up.');
+                  disp('You can try setting the Stan version explicitly using the stan_version attribute.');
+                  disp('i.e. StanModel.stan_version = [2 15 0]');
+                  rethrow(err);
                end
                count = count + 1;
             end
@@ -1014,10 +1020,6 @@ classdef StanModel < handle
          end
       end
       
-%       function disp(self)
-% 
-%       end
-
       function new = copy(self)
          % Shallow copy handle object
          %http://www.mathworks.com/matlabcentral/newsreader/view_thread/257925
@@ -1106,27 +1108,26 @@ classdef StanModel < handle
       end
       
       function update_model(self,flag,arg)
-      % Model must exist with extension .stan, but compiling
-      % requires passing the name without extension
-      %
-      % in stan object, model is defined by three attributes,
-      %   1) a name
-      %   2) a file on disk (or url)
-      %   3) code
-      % 1) does not include the .stan extension, and should always match the 
-      % name of the file (2, sans extension). 3) is always read directly from
-      % 2). This means, when either 1) or 2) change, we have to update 2) and 
-      % 1), respectively.
-      % Changing the model_name
-      %    write a new file matching model_name (check overwrite)
-      % Changing the file
-      %    set file, model_name, model_home
-      % Changing the code
-      %    write a new file matching model_name (check overwrite)
-
+         % Model must exist with extension .stan, but compiling
+         % requires passing the name without extension
+         %
+         % in stan object, model is defined by three attributes,
+         %   1) a name
+         %   2) a file on disk (or url)
+         %   3) code
+         % 1) does not include the .stan extension, and should always match the
+         % name of the file (2, sans extension). 3) is always read directly from
+         % 2). This means, when either 1) or 2) change, we have to update 2) and
+         % 1), respectively.
+         % Changing the model_name
+         %    write a new file matching model_name (check overwrite)
+         % Changing the file
+         %    set file, model_name, model_home
+         % Changing the code
+         %    write a new file matching model_name (check overwrite)
          switch lower(flag)
             case {'model_name'}
-               [~,name,ext] = fileparts(arg);
+               [~,name] = fileparts(arg);
                if isempty(self.model_code)
                   % no code, model not defined
                   self.model_name_ = name;
@@ -1139,14 +1140,13 @@ classdef StanModel < handle
                if isempty(arg)
                   self.file_ = '';
                   self.model_name_ = '';
-                  self.model_home = '';
                else
                   [path,name,ext] = fileparts(arg);
                   if isempty(path)
-                     path = pwd;
+                     path = self.working_dir;
                   end
                   if ~strcmp(ext,'.stan')
-                     if exist(fullfile(path,[name '.stan']))
+                     if exist(fullfile(path,[name '.stan']),'file')
                         ext = '.stan';
                      else
                         error('StanModel:update_model:InputFormat',...
@@ -1164,20 +1164,16 @@ classdef StanModel < handle
                   self.update_model('write',arg);
                end
             case {'write'}
-               if isempty(self.model_home)
-                  self.model_home = self.working_dir;
-               end
-               
                fname = self.model_path;
                if exist(fname,'file')
                   % Model file already exists
                   % Only write if contents different, avoid trivial recompiles
                   % Cannot be certain that binary did not change?
-%                   temp = mstan.read_lines(fname);
-%                   if all(strcmp(sprintf('%s\n',temp{:}),sprintf('%s\n',arg{:})))%all(strcmp(temp,arg))
-%                      self.update_model('file',fname);
-%                      return;
-%                   end
+                  temp = mstan.read_lines(fname);
+                  if all(strcmp(sprintf('%s\n',temp{:}),sprintf('%s\n',arg{:})))%all(strcmp(temp,arg))
+                     self.update_model('file',fname);
+                     return;
+                  end
                   if self.file_overwrite
                      mstan.write_lines(fname,arg);
                      self.update_model('file',fname);
@@ -1187,7 +1183,7 @@ classdef StanModel < handle
                      [~,name] = fileparts(filename);
                      self.model_name_ = name;
                      self.model_home = filepath;
-
+                     
                      mstan.write_lines(self.model_path,arg);
                      self.update_model('file',self.model_path);
                      self.delete_binary();
@@ -1198,7 +1194,7 @@ classdef StanModel < handle
                   self.delete_binary();
                end
             otherwise
-               error('');
+               error('StanModel:update_model:InputFormat','Unknown flag');
          end
       end
       
