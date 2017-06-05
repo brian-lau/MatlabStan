@@ -268,7 +268,13 @@ classdef StanFit < handle
          if self.verbose
             fprintf('stan finished processing %s\n',src.id);
          end
+         
          self.loaded(ind) = true;
+         
+         % Delete processManager instances, this prevents a serializable
+         % warning if running job using parfor
+         self.processes(ind).delete();
+         
          if nansum(self.loaded) == numel(self.loaded)
             %if any(arrayfun(@(x) isempty(x.lp__),self.iter_))
             %   % FIXME: not a good check, eventually we may not keep lp__
