@@ -47,6 +47,7 @@ eta = fit.extract('permuted',true).eta;
 mean(eta)
 
 ```
+A collection of Matlab-specific examples is available in the [wiki](https://github.com/brian-lau/MatlabStan/wiki#examples).
 ## Need help?
 You may be able to find a solution in the [wiki](https://github.com/brian-lau/MatlabStan/wiki/). Otherwise, open an [issue](https://github.com/brian-lau/MatlabStan/issues).
 
