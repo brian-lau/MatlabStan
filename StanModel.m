@@ -927,16 +927,19 @@ classdef StanModel < handle
       
       function ver = get_stan_version_(self)
          command = [fullfile(self.stan_home,'bin','stanc') ' --version'];
-         p = processManager('id','stanc version','command',command,...
-                            'keepStdout',true,...
-                            'printStdout',false,...
-                            'pollInterval',0.005);
-         p.block(0.05);
-         if p.exitValue == 0
-            str = regexp(p.stdout{1},'\ ','split');
+         [status,result] = system(command);
+%          p = processManager('id','stanc version','command',command,...
+%                             'keepStdout',true,...
+%                             'printStdout',false,...
+%                             'pollInterval',0.005);
+%          p.block(0.05);
+%          status = p.exitValue;
+%          result = p.stdout{1};
+         if status == 0
+            str = regexp(result,'\ ','split');
             ver = cellfun(@str2num,regexp(str{3},'\.','split'));
          else
-            fprintf('%s\n',p.stdout{:});
+            fprintf('%s\n',result);
          end
       end
       
