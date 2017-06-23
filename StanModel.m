@@ -75,6 +75,9 @@
 %              If false, a file dialog is opened when the model is changed
 %              allowing the user to specify a different filename, or
 %              manually overwrite the current.
+%     inOpts - struct, optional
+%              Allows direct access to all CmdStan configuration settings
+%              in the form of a struct. 
 %
 % METHODS
 %     set    - Set multiple properties (as name/value pairs)
@@ -149,6 +152,7 @@ classdef StanModel < handle
       params
       defaults
       validators
+      inOpts
       
       file_
       model_name_
@@ -248,6 +252,7 @@ classdef StanModel < handle
          p.addParamValue('verbose',self.verbose);
          p.addParamValue('file_overwrite',self.file_overwrite);
          p.addParamValue('refresh',self.refresh);
+         p.addParamValue('inOpts',self.inOpts);
          p.parse(varargin{:});
 
          self.verbose = p.Results.verbose;
@@ -281,6 +286,7 @@ classdef StanModel < handle
          self.inc_warmup = p.Results.inc_warmup;
          self.data = p.Results.data;
          self.refresh = p.Results.refresh;
+         self.inOpts = p.Results.inOpts;
       end
       
       function set.stan_home(self,d)
@@ -760,8 +766,14 @@ classdef StanModel < handle
             
       function command = get.command(self)
          command = {[self.model_binary_path ' ']};
-         str = mstan.parse_stan_params(self.params,self.method);
+
+         params = self.params;
+         if ~isempty(self.inOpts)
+             params = mergeOption(self.inOpts,params);
+         end         
+         str = mstan.parse_stan_params(params,self.method);
          command = cat(1,command,str);
+         %%
       end
       
       function fit = sampling(self,varargin)
@@ -1216,5 +1228,28 @@ classdef StanModel < handle
             delete([self.model_binary_path '.o']);
          end
       end
+      
+      function optionFinal = mergeOption(option,optionDefault)
+      % Merge two struct options into one struct
+      % Usage:
+      % optionFinal = mergeOption(option,optionDefault)
+            optionFinal=optionDefault;
+            if isempty(option)
+                return;
+            end
+
+            names=fieldnames(option);
+            for i=1:numel(names)
+                cfield = option.(names{i});
+                if (isstruct(cfield) && isfield(optionDefault,names{i}))
+                    cfield = mergeOption(cfield,optionDefault.(names{i}));        
+                    optionFinal.(names{i}) = cfield;
+                else
+                    optionFinal.(names{i}) = cfield;
+                end
+            end
+
+       end
+      
    end
 end
