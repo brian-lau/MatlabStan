@@ -1,5 +1,5 @@
 % xUnit framework required
-% http://www.mathworks.com/matlabcentral/fileexchange/22846-matlab-xunit-test-framework
+% https://github.com/psexton/matlab-xunit
 
 % REF:
 % https://github.com/stan-dev/pystan/blob/develop/pystan/tests/test_basic_matrix.py
