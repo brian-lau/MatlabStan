@@ -894,7 +894,26 @@ classdef StanModel < handle
       end
       
       function diagnose(self)
-         error('not done');
+        if ispc
+            command = [self.model_binary_path, ' diagnose.exe '];
+        else
+            command = [self.model_binary_path, ' diagnose '];
+        end
+        command = [command 'data file=' self.params.data.file];
+        
+        
+        p = processManager('command',command,...
+                    'workingDir',self.working_dir,...
+                    'wrap',100,...
+                    'printStdout',true,...
+                    'printStderr',false,...
+                    'keepStdout',true,...
+                    'keepStderr',true);
+         if p.exitValue == 0
+            out = p.stdout; 
+         else 
+            out = p.stderr;
+         end    
       end
 
       function ver = get_stan_version(self)

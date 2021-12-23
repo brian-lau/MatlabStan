@@ -407,6 +407,30 @@ classdef StanFit < handle
       function traceplot(self,varargin)
          self.sim.traceplot(varargin{:});
       end
+      
+      function out = diagnose(self)
+         if self.exit_with_data()
+             if ispc
+                command = fullfile(self.model.stan_home,'bin','diagnose.exe ');
+             else
+                command = fullfile(self.model.stan_home,'bin','diagnose ');
+             end
+         
+            command = [command strjoin( self.output_file,' ') ];
+            p = processManager('command',command,...
+                                'workingDir',self.model.working_dir,...
+                                'wrap',100,...
+                                'printStdout',true,...
+                                'printStderr',false,...
+                                'keepStdout',true,...
+                                'keepStderr',true);
+             if p.exitValue == 0
+                out = p.stdout; 
+             else 
+                out = p.stderr;
+             end    
+         end    
+      end    
    end
    
    methods(Static)
