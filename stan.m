@@ -77,6 +77,9 @@
 %              If false, a file dialog is opened when the model is changed
 %              allowing the user to specify a different filename, or
 %              manually overwrite the current.
+%     block  - bool, optional
+%              Determines whether the the call blocks the command line
+%              default = false
 %
 % OUTPUTS
 %     fit - StanFit instance
@@ -101,6 +104,7 @@ p.addParamValue('method','sample');
 p.addParamValue('iter',2000,@(x) isscalar(x) && (x>0));
 p.addParamValue('warmup',[],@(x) isscalar(x) && (x>=0));
 p.addParamValue('refresh',[],@(x) isscalar(x) && (x>0));
+p.addParamValue('block',false,@(x) isscalar(x) && islogical(x));
 p.addParamValue('algorithm','');
 p.parse(varargin{:});
 
@@ -148,6 +152,10 @@ switch lower(model.method)
       fit = model.optimizing(p.Unmatched);
    case {'variational' 'vb'}
       fit = model.vb(p.Unmatched);
+end
+
+if p.Results.block
+   fit.block();
 end
 
 if fit.model == model
