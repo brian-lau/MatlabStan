@@ -235,6 +235,7 @@ classdef StanModel < handle
          p.addParamValue('working_dir',self.working_dir);
          p.addParamValue('method',self.method);
          p.addParamValue('sample_file',self.sample_file);
+         p.addParamValue('algorithm',self.algorithm);
          p.addParamValue('iter',self.iter);
          p.addParamValue('warmup',self.warmup);
          p.addParamValue('thin',self.thin);
@@ -937,7 +938,11 @@ classdef StanModel < handle
 %          result = p.stdout{1};
          if status == 0
             str = regexp(result,'\ ','split');
-            ver = cellfun(@str2num,regexp(str{3},'\.','split'));
+            if strcmp(str{1},'stanc3')
+                ver = [3 0 0];
+            else   
+                ver = cellfun(@str2num,regexp(str{3},'\.','split'));
+            end    
          else
             fprintf('%s\n',result);
          end
