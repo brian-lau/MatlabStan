@@ -927,8 +927,8 @@ classdef StanModel < handle
                             'pollInterval',0.005);
          p.block(0.05);
          if p.exitValue == 0
-            str = regexp(p.stdout{1},'\ ','split');
-            ver = cellfun(@str2num,regexp(str{3},'\.','split'));
+            str = regexp(p.stdout{1},'(?<=v)[0-9\.]+', 'match');
+            ver = cellfun(@str2num,regexp(str{1},'\.','split'));
          else
             fprintf('%s\n',p.stdout{:});
          end
